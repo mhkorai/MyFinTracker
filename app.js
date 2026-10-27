@@ -765,8 +765,10 @@ function wireNameSuggest(t) {
   const stats = nameStats();
   const show = () => {
     const q = inp.value.trim().toLowerCase(); if (!q) { box.hidden = true; return; }
-    const list = stats.filter(e => e.name.toLowerCase().includes(q) && e.name.toLowerCase() !== q)
-      .sort((a, b) => (b.name.toLowerCase().startsWith(q) - a.name.toLowerCase().startsWith(q)) || ((b.types[t.type] ? 1 : 0) - (a.types[t.type] ? 1 : 0)) || b.c - a.c || b.last - a.last).slice(0, 6);
+    const words = q.split(/\s+/).filter(Boolean); const lc = e => e.name.toLowerCase();
+    const rank = e => lc(e).startsWith(q) ? 0 : lc(e).includes(q) ? 1 : 2; // exact order first, then any order
+    const list = stats.filter(e => lc(e) !== q && words.every(w => lc(e).includes(w)))
+      .sort((a, b) => (rank(a) - rank(b)) || ((b.types[t.type] ? 1 : 0) - (a.types[t.type] ? 1 : 0)) || b.c - a.c || b.last - a.last).slice(0, 6);
     if (!list.length) { box.hidden = true; return; }
     box.innerHTML = list.map(e => `<div class="sugrow" data-n="${esc(e.name)}">${esc(e.name)}<span class="mut"> ×${e.c}</span></div>`).join(''); box.hidden = false;
   };
