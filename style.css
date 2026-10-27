@@ -120,3 +120,8 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
   :root[data-theme=auto] .btn.sec{color:var(--text)}
   :root[data-theme=auto] .btn.danger{color:var(--exp)}
 }
+.pp{color:#9333ea}
+:root[data-theme=dark] .pp{color:#c084fc}
+.seg button{font-size:.88em;padding:8px 2px}
+.seg button.on.p{color:#9333ea}
+@media (prefers-color-scheme:dark){:root[data-theme=auto] .pp{color:#c084fc}}

@@ -94,11 +94,17 @@ function balances() {
   const m = {}; S.accounts.forEach(a => m[a.id] = a.opening || 0);
   S.tx.forEach(t => {
     if (t.type === 'income') m[t.accountId] = (m[t.accountId] ?? 0) + t.sum;
-    else if (t.type === 'expense') m[t.accountId] = (m[t.accountId] ?? 0) - t.sum;
+    else if (t.type === 'expense') { if (!t.prepayId) m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; }
+    else if (t.type === 'prepayment') m[t.accountId] = (m[t.accountId] ?? 0) - t.sum;
     else if (t.type === 'transfer') { m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; m[t.toAccountId] = (m[t.toAccountId] ?? 0) + (t.toSum ?? t.sum); }
   });
   return m;
 }
+const prepayList = () => S.tx.filter(t => t.type === 'prepayment');
+const prepay = id => S.tx.find(t => t.id === id && t.type === 'prepayment');
+const prepayUsed = (id, exceptTx) => S.tx.filter(t => t.prepayId === id && t.id !== exceptTx).reduce((s, t) => s + t.sum, 0);
+const prepayLeft = (p, exceptTx) => p.sum - prepayUsed(p.id, exceptTx);
+const resolveAcc = v => String(v || '').startsWith('pp:') ? acc(prepay(v.slice(3))?.accountId) : acc(v);
 const pad2 = n => String(n).padStart(2, '0');
 const ymd = d => { d = new Date(d); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); };
 const hm = d => { d = new Date(d); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); };
@@ -198,6 +204,8 @@ function txRowHtml(t, opts = {}) {
     const b = acc(t.toAccountId);
     title = t.name || 'Transfer'; sub = `${esc(a?.name)} → ${esc(b?.name)}`; cls = 'tr'; amt = fmt(t.sum, a?.currencyId); ic = '⇄'; dot = 'var(--tr)';
     if (b && b.currencyId !== a?.currencyId) amt += ` → ${fmt(t.toSum, b.currencyId)}`;
+  } else if (t.type === 'prepayment') {
+    title = t.name || 'Prepayment'; sub = `Prepayment · ${esc(a?.name)} · ${fmt(prepayLeft(t), a?.currencyId)} left`; cls = 'pp'; amt = fmt(-t.sum, a?.currencyId); ic = '🅿'; dot = '#9333ea';
   } else if (t.debtId) {
     const d = S.debts.find(x => x.id === t.debtId);
     title = t.name || (d ? d.name : 'Debt'); sub = `Debt · ${esc(a?.name)}`; cls = t.type === 'income' ? 'inc' : 'exp'; amt = fmt(t.type === 'income' ? t.sum : -t.sum, a?.currencyId, true); ic = '🤝'; dot = '#9333ea';
@@ -205,7 +213,7 @@ function txRowHtml(t, opts = {}) {
     const cc = cat(t.categoryId);
     const cp = cc ? catPath(cc.id) : '—';
     title = S.settings.catAbove ? cp : (t.name || cp);
-    sub = (S.settings.catAbove ? (t.name ? esc(t.name) + ' · ' : '') : (t.name ? esc(cp) + ' · ' : '')) + esc(a?.name) + (t.desc ? ' · ' + esc(t.desc) : '');
+    sub = (S.settings.catAbove ? (t.name ? esc(t.name) + ' · ' : '') : (t.name ? esc(cp) + ' · ' : '')) + esc(t.prepayId ? 'Prepaid: ' + (prepay(t.prepayId)?.name || '') : a?.name) + (t.desc ? ' · ' + esc(t.desc) : '');
     cls = t.type === 'income' ? 'inc' : 'exp'; amt = fmt(t.type === 'income' ? t.sum : -t.sum, a?.currencyId, true);
     ic = esc((cc?.name || '?').charAt(0).toUpperCase()); dot = color(catRoot(t.categoryId)?.id || t.categoryId);
   }
@@ -215,7 +223,7 @@ function txRowHtml(t, opts = {}) {
 function sumRange(from, to, accId) {
   let inc = 0, exp = 0;
   S.tx.forEach(t => {
-    if (t.date < from || t.date >= to || t.type === 'transfer' || t.debtId) return;
+    if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return;
     if (accId && t.accountId !== accId) return;
     const a = acc(t.accountId); const v = toBase(t.sum, a?.currencyId);
     if (t.type === 'income') inc += v; else exp += v;
@@ -251,6 +259,8 @@ function viewHome() {
       <button class="btn sm" data-a="planok" data-v="${p.id}">✓</button><button class="btn sm sec" data-a="planskip" data-v="${p.id}">Skip</button></div>`;
     }).join('')}</div>`;
   }
+  const pps = prepayList().filter(p => prepayLeft(p) > 0.0001);
+  if (pps.length) h += `<div class="card"><h3>Prepayments <button class="btn sm sec" style="float:right;margin-top:-6px" data-a="go" data-v="prepayments">All</button></h3>${pps.map(p => `<div class="row"><div class="dot" style="background:#9333ea">🅿</div><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">of ${fmt(p.sum, acc(p.accountId)?.currencyId)}</div></div><div class="amt">${fmt(prepayLeft(p), acc(p.accountId)?.currencyId)}</div></div>`).join('')}</div>`;
   h += `<div class="card"><h3>Accounts <button class="btn sm sec" style="float:right;margin-top:-6px" data-a="go" data-v="accounts">Manage</button></h3>`;
   if (!active.length) h += emptyMsg('Add your first account — for example Cash or Bank Card') + `<button class="btn" data-a="editacc">Create your first account</button>`;
   else h += active.map(a => `<div class="row tap" data-a="accfilter" data-v="${a.id}"><div class="dot" style="background:var(--brand-l)">${a.icon || '💵'}</div><div class="grow"><div class="t">${esc(a.name)}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div><div class="amt ${bal[a.id] < 0 ? 'exp' : ''}">${fmt(bal[a.id] || 0, a.currencyId)}</div></div>`).join('');
@@ -285,10 +295,10 @@ function filteredTx(p, f) {
 function viewHistory() {
   const f = U.hf; const list = filteredTx(U.ph, f);
   let inc = 0, exp = 0;
-  list.forEach(t => { if (t.type === 'transfer' || t.debtId) return; const v = toBase(t.sum, acc(t.accountId)?.currencyId); t.type === 'income' ? inc += v : exp += v; });
+  list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; const v = toBase(t.sum, acc(t.accountId)?.currencyId); t.type === 'income' ? inc += v : exp += v; });
   let h = header('History') + '<div class="wrap">' + periodBar(U.ph, 'ph');
   h += `<div class="search"><input type="search" placeholder="Search name, note, category" value="${esc(f.q)}" data-a="hq"></div>
-  <div class="btns" style="margin:0 0 10px"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+  <div class="btns" style="margin:0 0 10px"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
   <select data-a="hacc"><option value="">All accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
   <div class="btns" style="margin:0 0 10px"><select data-a="hcat"><option value="">All categories</option>${[...catSorted('expense'), ...catSorted('income')].map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${c.type === 'income' ? '↓ ' : ''}${esc(catPath(c.id))}</option>`).join('')}</select></div>
   <div class="card"><div class="sum3" style="margin:0"><div><small>Income</small><b class="inc">${fmtB(inc)}</b></div><div><small>Expenses</small><b class="exp">${fmtB(exp)}</b></div></div></div>`;
@@ -296,7 +306,7 @@ function viewHistory() {
   const groups = new Map();
   list.forEach(t => { const k = +startOfDay(t.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
   groups.forEach((arr, k) => {
-    let net = 0; arr.forEach(t => { if (t.type === 'transfer' || t.debtId) return; const v = toBase(t.sum, acc(t.accountId)?.currencyId); net += t.type === 'income' ? v : -v; });
+    let net = 0; arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; const v = toBase(t.sum, acc(t.accountId)?.currencyId); net += t.type === 'income' ? v : -v; });
     h += `<div class="dayhead"><span>${dayLabel(k)}</span><span>${fmtB(net, true)}</span></div><div class="card" style="padding:4px 14px">${arr.map(t => txRowHtml(t, { time: true })).join('')}</div>`;
   });
   return h + '</div>';
@@ -351,7 +361,7 @@ function viewReports() {
   const monthly = R.type.startsWith('month') || R.type === 'compare';
   if (!monthly) h += periodBar(U.pr, 'pr');
   h += `<select data-a="racc" style="margin-bottom:12px"><option value="">All accounts</option>${S.accounts.map(x => `<option value="${x.id}" ${R.acc === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
-  const base = S.tx.filter(t => t.type !== 'transfer' && !t.debtId && (!R.acc || t.accountId === R.acc));
+  const base = S.tx.filter(t => t.type !== 'transfer' && t.type !== 'prepayment' && !t.debtId && (!R.acc || t.accountId === R.acc));
   const val = t => toBase(t.sum, acc(t.accountId)?.currencyId);
   if (R.type === 'pie-exp' || R.type === 'pie-inc') {
     const kind = R.type === 'pie-exp' ? 'expense' : 'income'; const map = new Map();
@@ -385,7 +395,7 @@ function viewReports() {
 }
 
 function viewMore() {
-  const items = [['accounts', '🏦', 'Accounts'], ['categories', '🗂️', 'Categories'], ['budgets', '🎯', 'Budgets'], ['debts', '🤝', 'Debts'], ['planned', '🔁', 'Planned operations'],
+  const items = [['accounts', '🏦', 'Accounts'], ['categories', '🗂️', 'Categories'], ['budgets', '🎯', 'Budgets'], ['debts', '🤝', 'Debts'], ['prepayments', '🅿', 'Prepayments'], ['planned', '🔁', 'Planned operations'],
   ['templates', '📋', 'Templates'], ['currencies', '💱', 'Currencies'], ['data', '💾', 'Backup & import / export'], ['settings', '⚙︎', 'Settings']];
   return header('More') + `<div class="wrap"><div class="card menu">${items.map(([k, i, l]) => `<div class="row tap" data-a="go" data-v="${k}"><div class="ic">${i}</div><div class="grow t">${l}</div><span class="chev">›</span></div>`).join('')}</div>
   <p class="mut" style="text-align:center;font-size:.8em">All data is stored only on this device.<br>Use Backup regularly.</p></div>`;
@@ -398,6 +408,7 @@ function renderPage(pg) {
     case 'categories': return pgCategories();
     case 'budgets': return pgBudgets();
     case 'debts': return pgDebts();
+    case 'prepayments': return pgPrepayments();
     case 'debt': return pgDebt(pg.arg);
     case 'planned': return pgPlanned();
     case 'templates': return pgTemplates();
@@ -461,6 +472,16 @@ function pgDebt(id) {
   return header(d.name, { back: 1, right: `<button class="icon-btn" data-a="editdebt" data-v="${d.id}">✎</button>` }) + `<div class="wrap"><div class="card"><h3>${d.dir === 'lend' ? 'Owes you' : 'You owe'}</h3><div class="big">${fmt(debtRemaining(d), a?.currencyId)}</div>
   <div class="mut" style="font-size:.85em">of ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div><div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">Add repayment</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">Increase debt</button></div></div>
   <div class="card"><h3>History</h3>${(d.repayments || []).length ? [...d.repayments].sort((x, y) => y.date - x.date).map(r => `<div class="row tap" data-a="editrepay" data-v="${d.id}" data-arg="${r.id}"><div class="grow"><div class="t">${r.sum < 0 ? 'Increase' : 'Repayment'}</div><div class="s">${ymd(r.date)} · ${esc(acc(r.accountId)?.name)}</div></div><div class="amt">${fmt(Math.abs(r.sum), acc(r.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('No repayments yet')}</div></div>`;
+}
+function pgPrepayments() {
+  const list = prepayList().sort((a, b) => b.date - a.date);
+  return header('Prepayments', { back: 1, right: `<button class="icon-btn" data-a="addprepay">+</button>` }) + `<div class="wrap">${list.length ? list.map(p => {
+    const a = acc(p.accountId), used = prepayUsed(p.id), left = p.sum - used, pct = p.sum ? Math.min(100, used / p.sum * 100) : 0;
+    const uses = S.tx.filter(t => t.prepayId === p.id).sort((x, y) => y.date - x.date);
+    return `<div class="card"><div class="row tap" data-a="edittx" data-v="${p.id}" style="padding-top:0"><div class="dot" style="background:#9333ea">🅿</div><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">${ymd(p.date)} · paid from ${esc(a?.name)}</div></div><div class="amt">${fmt(p.sum, a?.currencyId)}</div></div>
+    <div class="bar"><i style="width:${pct}%"></i></div><div style="display:flex;justify-content:space-between;margin:6px 0 4px;font-size:.88em"><span>Used ${fmt(used, a?.currencyId)}</span><b class="${left > 0.0001 ? 'inc' : 'mut'}">${left > 0.0001 ? 'Left ' + fmt(left, a?.currencyId) : 'Fully used'}</b></div>
+    ${uses.map(t => txRowHtml(t)).join('')}</div>`;
+  }).join('') : '<div class="card">' + emptyMsg('No prepayments yet.<br>Add one with <b>+</b> → Prepayment.') + '</div>'}</div>`;
 }
 function pgPlanned() {
   const list = [...S.planned].sort((a, b) => a.date - b.date);
@@ -559,25 +580,27 @@ function openTx(init = {}, mode = 'tx') {
   ensureSetup(() => {
     const isEdit = !!init.id && mode === 'tx';
     const t = Object.assign({ type: 'expense', accountId: (S.accounts.find(a => a.active !== false && a.isDefault) || S.accounts.find(a => a.active !== false) || S.accounts[0])?.id, date: Date.now(), sum: null, name: '', desc: '', categoryId: '', toAccountId: '', toSum: null, repeat: 'none' }, init);
+    if (t.prepayId) t.accountId = 'pp:' + t.prepayId;
     if (mode === 'planned' && !init.id) t.date = Date.now() + DAY;
     let tplSave = false;
     const draw = () => {
       const isTr = t.type === 'transfer';
-      const a = acc(t.accountId), b = acc(t.toAccountId);
+      if (t.type !== 'expense' && String(t.accountId).startsWith('pp:')) t.accountId = resolveAcc(t.accountId)?.id || S.accounts[0]?.id;
+      const a = resolveAcc(t.accountId), b = acc(t.toAccountId);
       const cross = isTr && a && b && a.currencyId !== b.currencyId;
       if (!isTr && !cat(t.categoryId) || (cat(t.categoryId) && cat(t.categoryId).type !== t.type && !isTr)) t.categoryId = catSorted(t.type)[0]?.id || '';
       if (isTr && (!t.toAccountId || t.toAccountId === t.accountId)) t.toAccountId = S.accounts.find(x => x.id !== t.accountId)?.id || '';
       const tpls = !isEdit && mode === 'tx' ? S.templates : [];
       sheet(`<button class="x" data-a="close">✕</button><h2>${mode === 'planned' ? (init.id ? 'Edit planned operation' : 'Planned operation') : isEdit ? 'Edit transaction' : 'New transaction'}</h2>
-      <div class="seg" style="margin-bottom:12px">${[['expense', 'Expense', 'e'], ['income', 'Income', 'i'], ['transfer', 'Transfer', 't']].map(([k, l, c]) => `<button type="button" class="${t.type === k ? 'on ' + c : ''}" data-ty="${k}">${l}</button>`).join('')}</div>
+      <div class="seg" style="margin-bottom:12px">${[['expense', 'Expense', 'e'], ['income', 'Income', 'i'], ['transfer', 'Transfer', 't'], ['prepayment', 'Prepayment', 'p']].map(([k, l, c]) => `<button type="button" class="${t.type === k ? 'on ' + c : ''}" data-ty="${k}">${l}</button>`).join('')}</div>
       ${tpls.length ? `<div style="display:flex;gap:6px;overflow:auto;margin-bottom:12px">${tpls.map(x => `<button type="button" class="btn sm sec" style="white-space:nowrap" data-tpl="${x.id}">${esc(x.tplName || x.name || catPath(x.categoryId))}</button>`).join('')}</div>` : ''}
       <form id="txf" autocomplete="off">
       <label class="f"><span>Amount ${a ? '(' + esc(cur(a.currencyId)?.short) + ')' : ''}</span><input class="amtin" id="t_sum" type="text" inputmode="decimal" placeholder="0" value="${t.sum ?? ''}"></label>
-      <label class="f"><span>${isTr ? 'From account' : 'Account'}</span><select id="t_acc">${accOptions(t.accountId).map(([v, l]) => `<option value="${v}" ${v === t.accountId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <label class="f"><span>${isTr ? 'From account' : t.type === 'expense' ? 'Paid from' : t.type === 'prepayment' ? 'Paid from account' : 'Account'}</span><select id="t_acc">${accountChoices(t).map(([v, l]) => `<option value="${v}" ${v === t.accountId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       ${isTr ? `<label class="f"><span>To account</span><select id="t_to">${accOptions(t.toAccountId).filter(([v]) => v !== t.accountId).map(([v, l]) => `<option value="${v}" ${v === t.toAccountId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         ${cross ? `<label class="f"><span>Amount received (${esc(cur(b.currencyId)?.short)})</span><input id="t_tosum" type="text" inputmode="decimal" value="${t.toSum ?? ''}" placeholder="auto"></label>` : ''}`
-          : `<label class="f"><span>Category</span><select id="t_cat">${catOptions(t.type).map(([v, l]) => `<option value="${v}" ${v === t.categoryId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`}
-      <label class="f"><span>Name (optional)</span><input id="t_name" type="text" value="${esc(t.name)}" list="names" autocapitalize="sentences"><datalist id="names">${[...new Set(S.tx.slice(-200).map(x => x.name).filter(Boolean))].slice(-40).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
+          : t.type === 'prepayment' ? '' : `<label class="f"><span>Category</span><select id="t_cat">${catOptions(t.type).map(([v, l]) => `<option value="${v}" ${v === t.categoryId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`}
+      <label class="f"><span>${t.type === 'prepayment' ? 'Prepayment for (e.g. Annual rent)' : 'Name (optional)'}</span><input id="t_name" type="text" value="${esc(t.name)}" list="names" autocapitalize="sentences"><datalist id="names">${[...new Set(S.tx.slice(-200).map(x => x.name).filter(Boolean))].slice(-40).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       <label class="f"><span>Note (optional)</span><input id="t_desc" type="text" value="${esc(t.desc)}"></label>
       <label class="f"><span>Date & time</span><input id="t_date" type="datetime-local" value="${dtLocal(t.date)}"></label>
       ${mode === 'planned' || !isEdit ? `<label class="f"><span>Repeat</span><select id="t_rep">${REPEATS.map(([v, l]) => `<option value="${v}" ${t.repeat === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
@@ -589,7 +612,7 @@ function openTx(init = {}, mode = 'tx') {
       $('#t_acc').onchange = () => { sync(); draw(); };
       if ($('#t_to')) $('#t_to').onchange = () => { sync(); draw(); };
       if (!isEdit && !t.sum) setTimeout(() => $('#t_sum')?.focus(), 80);
-      if ($('#t_del')) $('#t_del').onclick = () => confirmBox('Delete this ' + (mode === 'planned' ? 'planned operation' : 'transaction') + '?', () => {
+      if ($('#t_del')) $('#t_del').onclick = () => (mode === 'tx' && init.type === 'prepayment' && prepayUsed(init.id) > 0) ? toast('Delete the expenses paid from this prepayment first') : confirmBox('Delete this ' + (mode === 'planned' ? 'planned operation' : 'transaction') + '?', () => {
         if (mode === 'planned') S.planned = S.planned.filter(x => x.id !== init.id); else S.tx = S.tx.filter(x => x.id !== init.id);
         save(); render();
       });
@@ -601,8 +624,17 @@ function openTx(init = {}, mode = 'tx') {
           if (!t.toAccountId || t.toAccountId === t.accountId) return toast('Transfer can only be made between different accounts');
           const aa = acc(t.accountId), bb = acc(t.toAccountId);
           if (aa.currencyId !== bb.currencyId) { if (!(t.toSum > 0)) t.toSum = +(t.sum * rateOf(aa.currencyId) / rateOf(bb.currencyId)).toFixed(cur(bb.currencyId).dec); } else t.toSum = t.sum;
+        } else if (t.type === 'prepayment') {
+          if (!t.name) return toast('Enter what the prepayment is for');
+          const used = isEdit ? prepayUsed(init.id) : 0; if (t.sum < used - 0.0001) return toast('Less than already used (' + fmt(used, acc(t.accountId).currencyId) + ')');
         } else if (!t.categoryId) return toast('Choose a category');
-        const rec = { type: t.type, accountId: t.accountId, categoryId: t.type === 'transfer' ? '' : t.categoryId, sum: t.sum, name: t.name, desc: t.desc, toAccountId: t.type === 'transfer' ? t.toAccountId : '', toSum: t.type === 'transfer' ? t.toSum : null };
+        let prepayId;
+        if (String(t.accountId).startsWith('pp:')) {
+          const pp = prepay(t.accountId.slice(3)); if (!pp) return toast('Prepayment not found');
+          const left = prepayLeft(pp, isEdit ? init.id : null); if (t.sum > left + 0.0001) return toast('Exceeds the prepayment balance (' + fmt(left, acc(pp.accountId).currencyId) + ' left)');
+          prepayId = pp.id; t.accountId = pp.accountId;
+        }
+        const rec = { type: t.type, accountId: t.accountId, categoryId: t.type === 'transfer' ? '' : t.categoryId, sum: t.sum, name: t.name, desc: t.desc, toAccountId: t.type === 'transfer' ? t.toAccountId : '', toSum: t.type === 'transfer' ? t.toSum : null, prepayId };
         if (tplSave) S.templates.push({ id: uid(), tplName: t.name || (t.type === 'transfer' ? 'Transfer' : catPath(t.categoryId)), ...rec });
         const future = t.date > Date.now() + 60000;
         if (mode === 'planned' || ((t.repeat !== 'none' || future) && !isEdit)) {
@@ -626,6 +658,13 @@ function openTx(init = {}, mode = 'tx') {
   });
 }
 
+function accountChoices(t) {
+  const sel = String(t.accountId || '');
+  const list = accOptions(sel.startsWith('pp:') ? resolveAcc(sel)?.id : sel);
+  if (t.type === 'expense') prepayList().filter(p => prepayLeft(p, t.id) > 0.0001 || sel === 'pp:' + p.id)
+    .forEach(p => list.push(['pp:' + p.id, `🅿 Prepayment: ${p.name || 'Unnamed'} (${fmt(prepayLeft(p, t.id), acc(p.accountId)?.currencyId)} left)`]));
+  return list;
+}
 function editAccount(id) {
   const a = id ? acc(id) : null;
   if (!S.currencies.length) return openSetup(() => editAccount());
@@ -829,10 +868,10 @@ function setPin() {
 // ───────────────────────── events ─────────────────────────
 const actions = {
   tab: v => tab(v), go: (v, el) => go(v, el.dataset.arg), back: () => back(), close: () => closeSheet(),
-  addtx: () => openTx(), addplanned: () => openTx({}, 'planned'),
+  addtx: () => openTx(), addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
   edittx: v => { const t = S.tx.find(x => x.id === v); if (!t) return; if (t.debtId) { const d = S.debts.find(x => x.id === t.debtId); if (d) { go('debt', d.id); } return; } openTx({ ...t, repeat: 'none' }); },
   editplanned: v => { const p = S.planned.find(x => x.id === v); openTx({ ...p }, 'planned'); },
-  planok: v => { const p = S.planned.find(x => x.id === v); if (!p) return; S.tx.push({ id: uid(), type: p.type, accountId: p.accountId, categoryId: p.categoryId, sum: p.sum, name: p.name, desc: p.desc, toAccountId: p.toAccountId, toSum: p.toSum, date: Math.min(p.date, Date.now()) }); advancePlanned(p); save(); render(); toast('Added'); },
+  planok: v => { const p = S.planned.find(x => x.id === v); if (!p) return; S.tx.push({ id: uid(), type: p.type, accountId: p.accountId, categoryId: p.categoryId, sum: p.sum, name: p.name, desc: p.desc, toAccountId: p.toAccountId, toSum: p.toSum, prepayId: p.prepayId, date: Math.min(p.date, Date.now()) }); advancePlanned(p); save(); render(); toast('Added'); },
   planskip: v => { const p = S.planned.find(x => x.id === v); if (p) { advancePlanned(p); save(); render(); } },
   usetpl: v => { const x = S.templates.find(z => z.id === v); openTx({ type: x.type, accountId: x.accountId, categoryId: x.categoryId, sum: x.sum, name: x.name, desc: x.desc, toAccountId: x.toAccountId, toSum: x.toSum, date: Date.now() }); },
   deltpl: v => { S.templates = S.templates.filter(x => x.id !== v); save(); render(); },
