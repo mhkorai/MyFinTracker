@@ -75,6 +75,12 @@ function fmt(n, curId, signed) {
   return (rounded > 0 && n < 0 ? '−' : signed && rounded > 0 && n > 0 ? '+' : '') + s + ' ' + (c.short || '');
 }
 const fmtB = (n, signed) => fmt(n, defCur().id, signed);
+// per-currency totals (no conversion between currencies)
+const addBy = (m, curId, v) => { const k = (cur(curId) || defCur()).id; m.set(k, (m.get(k) || 0) + v); return m; };
+function fmtMulti(m, signed) {
+  const e = [...m].filter(([, v]) => Math.abs(v) > 0.0000001).sort((a, b) => (a[0] === defCur().id ? -1 : b[0] === defCur().id ? 1 : (cur(a[0])?.short || '').localeCompare(cur(b[0])?.short || '')));
+  return e.length ? e.map(([k, v]) => `<span style="display:block">${fmt(v, k, signed)}</span>`).join('') : `<span style="display:block">${fmt(0, defCur().id)}</span>`;
+}
 function catPath(id) {
   const c = cat(id); if (!c) return '—';
   const p = []; let x = c, g = 0;
@@ -237,12 +243,20 @@ function txRowHtml(t, opts = {}) {
   return `<div class="row tap" data-a="edittx" data-v="${t.id}"><div class="dot" style="background:${dot}">${ic}</div><div class="grow"><div class="t">${esc(title)}</div><div class="s">${sub}${opts.time ? ' · ' + hm(t.date) : ''}</div></div><div class="amt ${cls}">${amt}</div></div>`;
 }
 
+function sumRangeBy(from, to) {
+  const inc = new Map(), exp = new Map();
+  S.tx.forEach(t => {
+    if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return;
+    addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum);
+  });
+  return { inc, exp };
+}
 function sumRange(from, to, accId) {
   let inc = 0, exp = 0;
   S.tx.forEach(t => {
     if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return;
     if (accId && t.accountId !== accId) return;
-    const a = acc(t.accountId); const v = toBase(t.sum, a?.currencyId);
+    const a = acc(t.accountId); if ((a?.currencyId || defCur().id) !== defCur().id) return; const v = t.sum;
     if (t.type === 'income') inc += v; else exp += v;
   });
   return { inc, exp };
@@ -251,16 +265,16 @@ function sumRange(from, to, accId) {
 function viewHome() {
   const bal = balances();
   const active = S.accounts.filter(a => a.active !== false);
-  const total = active.reduce((s, a) => s + toBase(bal[a.id] || 0, a.currencyId), 0);
+  const total = active.reduce((m, a) => addBy(m, a.currencyId, bal[a.id] || 0), new Map());
   const [mf, mt] = rangeOf({ kind: 'month', ref: Date.now() });
-  const m = sumRange(mf, mt);
+  const m = sumRangeBy(mf, mt);
   const now = Date.now();
   let h = header('Expense Tracker', { right: `<button class="icon-btn" data-a="go" data-v="settings" aria-label="Settings">⚙︎</button>` }) + '<div class="wrap">';
   if (S.tx.length && now - (S.settings.lastBackup || 0) > 14 * DAY) {
     h += `<div class="banner">⚠️<b>${S.settings.lastBackup ? 'Last backup was over 2 weeks ago.' : 'No backup yet.'} Your data lives only on this phone.</b><button class="btn sm" data-a="go" data-v="data" style="width:auto">Back up</button></div>`;
   }
-  h += `<div class="card"><h3>Total balance</h3><div class="big">${fmtB(total)}</div>
-  <div class="sum3"><div><small>Income · ${MONTHS[new Date().getMonth()]}</small><b class="inc">${fmtB(m.inc)}</b></div><div><small>Expenses · ${MONTHS[new Date().getMonth()]}</small><b class="exp">${fmtB(m.exp)}</b></div></div></div>`;
+  h += `<div class="card"><h3>Total balance</h3><div class="big" style="font-size:1.6em">${fmtMulti(total)}</div>
+  <div class="sum3"><div><small>Income · ${MONTHS[new Date().getMonth()]}</small><b class="inc">${fmtMulti(m.inc)}</b></div><div><small>Expenses · ${MONTHS[new Date().getMonth()]}</small><b class="exp">${fmtMulti(m.exp)}</b></div></div></div>`;
   // daily budget
   const db = S.budgets.find(b => b.period === 'daily');
   if (db) { const st = budgetStatus(db); h += `<div class="card"><h3>${st.left >= 0 ? 'Available today' : 'Overspent today'}</h3><div class="big ${st.left >= 0 ? 'inc' : 'exp'}">${fmtB(Math.abs(st.left))}</div></div>`; }
@@ -311,20 +325,20 @@ function filteredTx(p, f) {
 }
 function viewHistory() {
   const f = U.hf; const list = filteredTx(U.ph, f);
-  let inc = 0, exp = 0;
-  list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; const v = toBase(t.sum, acc(t.accountId)?.currencyId); t.type === 'income' ? inc += v : exp += v; });
+  const inc = new Map(), exp = new Map();
+  list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum); });
   let h = header('History') + '<div class="wrap">' + periodBar(U.ph, 'ph');
   h += `<div class="search"><input type="search" placeholder="Search name, note, category" value="${esc(f.q)}" data-a="hq"></div>
   <div class="btns" style="margin:0 0 10px"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
   <select data-a="hacc"><option value="">All accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
   <div class="btns" style="margin:0 0 10px"><select data-a="hcat"><option value="">All categories</option>${[...catSorted('expense'), ...catSorted('income')].map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${c.type === 'income' ? '↓ ' : ''}${esc(catPath(c.id))}</option>`).join('')}</select></div>
-  <div class="card"><div class="sum3" style="margin:0"><div><small>Income</small><b class="inc">${fmtB(inc)}</b></div><div><small>Expenses</small><b class="exp">${fmtB(exp)}</b></div></div></div>`;
+  <div class="card"><div class="sum3" style="margin:0"><div><small>Income</small><b class="inc">${fmtMulti(inc)}</b></div><div><small>Expenses</small><b class="exp">${fmtMulti(exp)}</b></div></div></div>`;
   if (!list.length) return h + emptyMsg('No transactions for this period.') + '</div>';
   const groups = new Map();
   list.forEach(t => { const k = +startOfDay(t.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
   groups.forEach((arr, k) => {
-    let net = 0; arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; const v = toBase(t.sum, acc(t.accountId)?.currencyId); net += t.type === 'income' ? v : -v; });
-    h += `<div class="dayhead"><span>${dayLabel(k)}</span><span>${fmtB(net, true)}</span></div><div class="card" style="padding:4px 14px">${collapse(arr).map(t => txRowHtml(t, { time: true })).join('')}</div>`;
+    const net = new Map(); arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; addBy(net, acc(t.accountId)?.currencyId, t.type === 'income' ? t.sum : -t.sum); });
+    h += `<div class="dayhead"><span>${dayLabel(k)}</span><span style="text-align:right">${fmtMulti(net, true)}</span></div><div class="card" style="padding:4px 14px">${collapse(arr).map(t => txRowHtml(t, { time: true })).join('')}</div>`;
   });
   return h + '</div>';
 }
@@ -378,8 +392,10 @@ function viewReports() {
   const monthly = R.type.startsWith('month') || R.type === 'compare';
   if (!monthly) h += periodBar(U.pr, 'pr');
   h += `<select data-a="racc" style="margin-bottom:12px"><option value="">All accounts</option>${S.accounts.map(x => `<option value="${x.id}" ${R.acc === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
-  const base = S.tx.filter(t => t.type !== 'transfer' && t.type !== 'prepayment' && !t.debtId && (!R.acc || t.accountId === R.acc));
-  const val = t => toBase(t.sum, acc(t.accountId)?.currencyId);
+  const rc = R.cur && cur(R.cur) ? R.cur : defCur().id; const fmtR = (n, sg) => fmt(n, rc, sg);
+  h += `<select data-a="rcur" style="margin-bottom:12px">${S.currencies.map(x => `<option value="${x.id}" ${rc === x.id ? 'selected' : ''}>${esc(x.short)} ${esc(x.name || '')}</option>`).join('')}</select>`;
+  const base = S.tx.filter(t => t.type !== 'transfer' && t.type !== 'prepayment' && !t.debtId && (!R.acc || t.accountId === R.acc) && (acc(t.accountId)?.currencyId || defCur().id) === rc);
+  const val = t => t.sum;
   if (R.type === 'pie-exp' || R.type === 'pie-inc') {
     const kind = R.type === 'pie-exp' ? 'expense' : 'income'; const map = new Map();
     base.filter(t => t.type === kind && t.date >= a && t.date < b).forEach(t => {
@@ -389,8 +405,8 @@ function viewReports() {
     const total = items.reduce((s, i) => s + i.value, 0);
     h += `<label class="chk"><input type="checkbox" data-a="rleaf" ${R.leaf ? 'checked' : ''}> Show subcategories</label>`;
     if (!items.length) return h + emptyMsg('Not enough data for the chart') + '</div>';
-    h += `<div class="card">${donut(items)}<div style="text-align:center;margin:6px 0 4px"><div class="mut" style="font-size:.8em">Total</div><div class="big">${fmtB(total)}</div></div></div>
-    <div class="card legend">${items.map(i => `<div class="row tap" data-a="repdrill" data-v="${i.id}"><i class="sw" style="background:${i.color}"></i><div class="grow t">${esc(i.label)}</div><div class="amt">${fmtB(i.value)} <span class="mut" style="font-weight:500">${(i.value / total * 100).toFixed(1)}%</span></div></div>`).join('')}</div>`;
+    h += `<div class="card">${donut(items)}<div style="text-align:center;margin:6px 0 4px"><div class="mut" style="font-size:.8em">Total</div><div class="big">${fmtR(total)}</div></div></div>
+    <div class="card legend">${items.map(i => `<div class="row tap" data-a="repdrill" data-v="${i.id}"><i class="sw" style="background:${i.color}"></i><div class="grow t">${esc(i.label)}</div><div class="amt">${fmtR(i.value)} <span class="mut" style="font-weight:500">${(i.value / total * 100).toFixed(1)}%</span></div></div>`).join('')}</div>`;
   } else if (monthly) {
     const y = new Date(U.pr.ref).getFullYear();
     h += `<div class="pbar"><button data-a="pyear" data-v="-1">‹</button><div class="lbl">${y}</div><button data-a="pyear" data-v="1">›</button></div>`;
@@ -400,13 +416,13 @@ function viewReports() {
     if (R.type === 'month-exp') ser = [{ name: 'Expenses', color: 'var(--exp)', values: m.map(x => x.exp) }];
     else if (R.type === 'month-inc') ser = [{ name: 'Income', color: 'var(--inc)', values: m.map(x => x.inc) }];
     else ser = [{ name: 'Income', color: 'var(--inc)', values: m.map(x => x.inc) }, { name: 'Expenses', color: 'var(--exp)', values: m.map(x => x.exp) }];
-    h += `<div class="card">${barChart(labels, ser)}</div><div class="card">${m.map((x, i) => (x.inc || x.exp) ? `<div class="row"><div class="grow t">${MONTHS[i]}</div><div class="amt">${R.type !== 'month-exp' ? `<span class="inc">${fmtB(x.inc)}</span>` : ''} ${R.type !== 'month-inc' ? `<span class="exp">${fmtB(x.exp)}</span>` : ''}</div></div>` : '').join('') || emptyMsg('No data')}</div>`;
+    h += `<div class="card">${barChart(labels, ser)}</div><div class="card">${m.map((x, i) => (x.inc || x.exp) ? `<div class="row"><div class="grow t">${MONTHS[i]}</div><div class="amt">${R.type !== 'month-exp' ? `<span class="inc">${fmtR(x.inc)}</span>` : ''} ${R.type !== 'month-inc' ? `<span class="exp">${fmtR(x.exp)}</span>` : ''}</div></div>` : '').join('') || emptyMsg('No data')}</div>`;
   } else {
     const days = []; for (let d = a; d < Math.min(b, a + 400 * DAY); d += DAY) days.push(d);
     if (U.pr.kind === 'all') return h + emptyMsg('Choose a shorter period') + '</div>';
     const kinds = base.filter(t => t.type === 'expense' && t.date >= a && t.date < b);
     const vals = days.map(d => kinds.filter(t => t.date >= d && t.date < d + DAY).reduce((s, t) => s + val(t), 0));
-    h += `<div class="card"><h3>Expenses per day</h3>${lineChart(days.map(d => new Date(d).getDate()), vals)}<div class="mut" style="text-align:center;font-size:.85em">Total ${fmtB(vals.reduce((s, v) => s + v, 0))} · avg ${fmtB(vals.reduce((s, v) => s + v, 0) / (days.length || 1))}/day</div></div>`;
+    h += `<div class="card"><h3>Expenses per day</h3>${lineChart(days.map(d => new Date(d).getDate()), vals)}<div class="mut" style="text-align:center;font-size:.85em">Total ${fmtR(vals.reduce((s, v) => s + v, 0))} · avg ${fmtR(vals.reduce((s, v) => s + v, 0) / (days.length || 1))}/day</div></div>`;
   }
   return h + '</div>';
 }
@@ -463,7 +479,8 @@ function budgetStatus(b) {
     if (t.type !== 'expense' || t.debtId || t.date < a || t.date >= z) return;
     if (b.kind === 'category' && !ids.has(t.categoryId)) return;
     if (b.kind === 'account' && !(b.refs || []).includes(t.accountId)) return;
-    spent += toBase(t.sum, acc(t.accountId)?.currencyId);
+    if ((acc(t.accountId)?.currencyId || defCur().id) !== defCur().id) return;
+    spent += t.sum;
   });
   return { spent, left: b.amount - spent, pct: b.amount ? Math.min(100, spent / b.amount * 100) : 0, range: [a, z] };
 }
@@ -477,9 +494,9 @@ function pgBudgets() {
 function debtRemaining(d) { return d.amount - (d.repayments || []).reduce((s, r) => s + r.sum, 0); }
 function pgDebts() {
   const list = S.debts.filter(d => !U.hideZero || debtRemaining(d) > 0.0001);
-  const owedToMe = S.debts.filter(d => d.dir === 'lend').reduce((s, d) => s + toBase(debtRemaining(d), acc(d.accountId)?.currencyId), 0);
-  const iOwe = S.debts.filter(d => d.dir === 'borrow').reduce((s, d) => s + toBase(debtRemaining(d), acc(d.accountId)?.currencyId), 0);
-  return header('Debts', { back: 1, right: `<button class="icon-btn" data-a="editdebt">+</button>` }) + `<div class="wrap"><div class="card"><div class="sum3" style="margin:0"><div><small>Owed to you</small><b class="inc">${fmtB(owedToMe)}</b></div><div><small>You owe</small><b class="exp">${fmtB(iOwe)}</b></div></div></div>
+  const owedToMe = S.debts.filter(d => d.dir === 'lend').reduce((m, d) => addBy(m, acc(d.accountId)?.currencyId, debtRemaining(d)), new Map());
+  const iOwe = S.debts.filter(d => d.dir === 'borrow').reduce((m, d) => addBy(m, acc(d.accountId)?.currencyId, debtRemaining(d)), new Map());
+  return header('Debts', { back: 1, right: `<button class="icon-btn" data-a="editdebt">+</button>` }) + `<div class="wrap"><div class="card"><div class="sum3" style="margin:0"><div><small>Owed to you</small><b class="inc">${fmtMulti(owedToMe)}</b></div><div><small>You owe</small><b class="exp">${fmtMulti(iOwe)}</b></div></div></div>
   <label class="chk"><input type="checkbox" data-a="hidezero" ${U.hideZero ? 'checked' : ''}> Hide debts with zero balance</label>
   <div class="card">${list.length ? list.map(d => `<div class="row tap" data-a="go" data-v="debt" data-arg="${d.id}"><div class="dot" style="background:${d.dir === 'lend' ? 'var(--inc)' : 'var(--exp)'}">${d.dir === 'lend' ? '↗' : '↙'}</div><div class="grow"><div class="t">${esc(d.name)}</div><div class="s">${d.dir === 'lend' ? 'Owes you' : 'You owe'} · ${ymd(d.date)}</div></div><div class="amt">${fmt(debtRemaining(d), acc(d.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('Here you can store and manage information about debts')}</div></div>`;
 }
@@ -917,7 +934,7 @@ const changes = {
   pkind: (el) => { const p = U[el.dataset.k]; p.kind = el.value; if (p.kind === 'custom') { p.from = p.from || Date.now() - 30 * DAY; p.to = p.to || Date.now(); } render(); },
   pfrom: el => { U[el.dataset.k].from = +new Date(el.value + 'T00:00'); render(); }, pto: el => { U[el.dataset.k].to = +new Date(el.value + 'T00:00'); render(); },
   htype: el => { U.hf.type = el.value; render(); }, hacc: el => { U.hf.acc = el.value; render(); }, hcat: el => { U.hf.cat = el.value; render(); },
-  rtype: el => { U.rep.type = el.value; render(); }, racc: el => { U.rep.acc = el.value; render(); },
+  rtype: el => { U.rep.type = el.value; render(); }, racc: el => { U.rep.acc = el.value; render(); }, rcur: el => { U.rep.cur = el.value; render(); },
   set: el => { S.settings[el.dataset.k] = el.dataset.num ? +el.value : el.value; save(); render(); },
 };
 function bindRender() { }
