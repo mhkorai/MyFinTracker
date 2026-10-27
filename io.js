@@ -228,7 +228,7 @@ function financePMToState(d) {
 }
 function finalizeFinancePM(o) {
   const keep = S; S = o.N; o.N.debts.forEach(d => syncDebtTx(d));
-  const nowT = Date.now(); o.N.accounts.forEach(x => { x.asOf = nowT; }); const b = balances(); const rem = o.N.debts.map(d => [d.name, d.dir, r2(debtRemaining(d)), cur(acc(d.accountId)?.currencyId)?.short]).filter(x => x[2] > 0.005);
+  const b = balances(); const rem = o.N.debts.map(d => [d.name, d.dir, r2(debtRemaining(d)), cur(acc(d.accountId)?.currencyId)?.short]).filter(x => x[2] > 0.005);
   o.rep.balances = o.N.accounts.filter(x => x.active).map(x => [x.name, r2(b[x.id] || 0), cur(x.currencyId)?.short]); o.rep.openDebts = rem; S = keep; return o;
 }
 
