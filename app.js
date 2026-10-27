@@ -294,16 +294,11 @@ function viewHome() {
   }
   const pps = prepayList().filter(p => prepayLeft(p) > 0.0001);
   if (pps.length) h += `<div class="card"><h3>Prepayments <button class="btn sm sec" style="float:right;margin-top:-6px" data-a="go" data-v="prepayments">All</button></h3>${pps.map(p => `<div class="row"><div class="dot" style="background:#9333ea">🅿</div><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">of ${fmt(p.sum, acc(p.accountId)?.currencyId)}</div></div><div class="amt">${fmt(prepayLeft(p), acc(p.accountId)?.currencyId)}</div></div>`).join('')}</div>`;
-  h += `<div class="card"><h3>Accounts <button class="btn sm sec" style="float:right;margin-top:-6px" data-a="go" data-v="accounts">Manage</button></h3>`;
-  if (!active.length) h += emptyMsg('Add your first account — for example Cash or Bank Card') + `<button class="btn" data-a="editacc">Create your first account</button>`;
-  else h += active.map(a => `<div class="row tap" data-a="accfilter" data-v="${a.id}"><div class="dot" style="background:var(--brand-l)">${a.icon || '💵'}</div><div class="grow"><div class="t">${esc(a.name)}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div><div class="amt ${bal[a.id] < 0 ? 'exp' : ''}">${fmt(bal[a.id] || 0, a.currencyId)}</div></div>`).join('');
-  h += '</div>';
-  // last 7 days chart
-  const days = []; for (let i = 6; i >= 0; i--) { const d = startOfDay(now - i * DAY); const s = sumRange(+d, +d + DAY); days.push({ l: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][d.getDay()], inc: s.inc, exp: s.exp }); }
-  if (days.some(d => d.inc || d.exp)) h += `<div class="card"><h3>Last 7 days</h3>${barChart(days.map(d => d.l), [{ name: 'Income', color: 'var(--inc)', values: days.map(d => d.inc) }, { name: 'Expenses', color: 'var(--exp)', values: days.map(d => d.exp) }])}</div>`;
-  const recent = collapse([...S.tx].sort((a, b) => b.date - a.date)).slice(0, 5);
-  if (recent.length) h += `<div class="card"><h3>Recent <button class="btn sm sec" style="float:right;margin-top:-6px" data-a="tab" data-v="hist">All</button></h3>${recent.map(t => txRowHtml(t)).join('')}</div>`;
-  else if (active.length) h += `<div class="card">${emptyMsg('No transactions yet.<br>Tap <b>+</b> to add your first one.')}</div>`;
+  const tiles = [['accounts', '🏦', 'Accounts', '#0f766e'], ['income', '📥', 'Income', '#16a34a'], ['expense', '🧾', 'Expenses', '#dc2626'], ['transfer', '🔄', 'Transfers', '#2563eb'],
+  ['debts', '🤝', 'Debts', '#d97706'], ['hist', '📒', 'Financial movements', '#7b1fa2'], ['rep', '📊', 'Reports', '#0891b2'], ['categories', '🗂️', 'Categories', '#db2777'],
+  ['budgets', '🎯', 'Budgets', '#65a30d'], ['prepayments', '🅿', 'Prepayments', '#9333ea'], ['planned', '🔁', 'Planned operations', '#ea580c'], ['currencies', '💱', 'Currencies', '#0d9488'],
+  ['data', '💾', 'Backup & import', '#475569'], ['settings', '⚙︎', 'Settings', '#64748b']];
+  h += `<div class="tiles">${tiles.map(([k, i, l, c]) => `<button class="tile" data-a="menu" data-v="${k}"><span class="ti" style="background:${c}">${i}</span><span class="tl">${l}</span></button>`).join('')}</div>`;
   return h + '</div>';
 }
 
@@ -457,7 +452,7 @@ function renderPage(pg) {
 function pgAccounts() {
   const bal = balances();
   return header('Accounts', { back: 1, right: `<button class="icon-btn" data-a="editacc">+</button>` }) + `<div class="wrap"><div class="card">${S.accounts.length ? S.accounts.map(a =>
-    `<div class="row tap" data-a="editacc" data-v="${a.id}"><div class="dot" style="background:var(--brand-l)">${a.icon || '💵'}</div><div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div><div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div></div>`).join('') : emptyMsg('No accounts created')}</div></div>`;
+    `<div class="row tap" data-a="editacc" data-v="${a.id}">${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div><div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div></div>`).join('') : emptyMsg('No accounts created')}</div></div>`;
 }
 function pgCategories() {
   const t = U.catType;
@@ -561,6 +556,7 @@ function fieldHtml(f) {
   const id = 'f_' + f.k; const v = f.value ?? '';
   let inner;
   if (f.type === 'select') inner = `<select id="${id}">${(f.options || []).map(([ov, ol]) => `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select>`;
+  else if (f.type === 'icon') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><input type="hidden" id="${id}" value="${esc(v)}"><div class="ipicker">${iconPicker(v)}</div></div>`;
   else if (f.type === 'textarea') inner = `<textarea id="${id}" rows="2">${esc(v)}</textarea>`;
   else if (f.type === 'checkbox') return `<label class="chk"><input type="checkbox" id="${id}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
   else if (f.type === 'multi') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><div class="card" style="margin:4px 0 0;padding:6px 12px;max-height:200px;overflow:auto">${f.options.map(([ov, ol]) => `<label class="chk" style="margin:6px 0"><input type="checkbox" name="${id}" value="${esc(ov)}" ${(v || []).includes(ov) ? 'checked' : ''}> ${esc(ol)}</label>`).join('')}</div></div>`;
@@ -587,10 +583,11 @@ function form(title, fields, onOk, opts = {}) {
     const err = onOk(v); if (err) { toast(err); return; } save(); closeSheet(); render();
   };
   if (opts.onDelete) $('#fdel').onclick = () => confirmBox(opts.delMsg || 'Delete this item?', () => { opts.onDelete(); save(); render(); });
+  $$('#theform [data-pick]').forEach(b => b.onclick = () => { $('#f_icon').value = b.dataset.pick; $$('#theform [data-pick]').forEach(x => x.classList.toggle('on', x === b)); });
   if (opts.onChange) $$('#theform select').forEach(s => s.onchange = () => opts.onChange());
 }
 
-function accOptions(extra) { return S.accounts.filter(a => a.active !== false || extra === a.id).map(a => [a.id, `${a.icon || ''} ${a.name} (${cur(a.currencyId)?.short})`]); }
+function accOptions(extra) { return S.accounts.filter(a => a.active !== false || extra === a.id).map(a => [a.id, `${iconText(a.icon)} ${a.name} (${cur(a.currencyId)?.short})`]); }
 function catOptions(type, selected) {
   const l = catSorted(type); return l.map(c => [c.id, '  '.repeat(catDepth(c)) + c.name]);
 }
@@ -661,13 +658,13 @@ function openTx(init = {}, mode = 'tx') {
       <div class="seg" style="margin-bottom:${showMore ? 6 : 12}px">${[['expense', 'Expense', 'e'], ['income', 'Income', 'i'], ['transfer', 'Transfer', 't']].map(([k, l, c]) => `<button type="button" class="${t.type === k ? 'on ' + c : ''}" data-ty="${k}">${l}</button>`).join('')}${t.type === 'prepayment' ? '' : `<button type="button" class="more" data-more aria-label="More types" title="Prepayment">${showMore ? '▴' : '▾'}</button>`}</div>
       ${showMore ? `<div class="seg" style="margin-bottom:12px"><button type="button" class="${t.type === 'prepayment' ? 'on p' : ''}" data-ty="prepayment">🅿 Prepayment</button></div>` : ''}
       <form id="txf" autocomplete="off">
+      <label class="f"><span>${t.type === 'prepayment' ? 'Prepayment for (e.g. Annual rent)' : 'Name'}</span><input id="t_name" type="text" value="${esc(t.name)}" list="names" autocapitalize="sentences"><datalist id="names">${[...new Set(S.tx.slice(-200).map(x => x.name).filter(Boolean))].slice(-40).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       ${t.split ? splitHtml() : `<label class="f"><span>Amount ${a ? '(' + esc(cur(a.currencyId)?.short) + ')' : ''}</span><input class="amtin" id="t_sum" type="text" inputmode="decimal" placeholder="0" value="${t.sum ?? ''}"></label>
       <label class="f"><span>${isTr ? 'From account' : t.type === 'expense' ? 'Paid from' : t.type === 'prepayment' ? 'Paid from account' : 'Account'}</span><select id="t_acc">${accountChoices(t).map(([v, l]) => `<option value="${v}" ${v === t.accountId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       ${t.type === 'expense' && mode === 'tx' ? '<button type="button" class="linkbtn" data-split>＋ Split across several accounts</button>' : ''}`}
       ${isTr ? `<label class="f"><span>To account</span><select id="t_to">${accOptions(t.toAccountId).filter(([v]) => v !== t.accountId).map(([v, l]) => `<option value="${v}" ${v === t.toAccountId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         ${cross ? `<label class="f"><span>Amount received (${esc(cur(b.currencyId)?.short)})</span><input id="t_tosum" type="text" inputmode="decimal" value="${t.toSum ?? ''}" placeholder="auto"></label>` : ''}`
           : t.type === 'prepayment' ? '' : `<label class="f"><span>Category</span><select id="t_cat">${catOptions(t.type).map(([v, l]) => `<option value="${v}" ${v === t.categoryId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`}
-      <label class="f"><span>${t.type === 'prepayment' ? 'Prepayment for (e.g. Annual rent)' : 'Name (optional)'}</span><input id="t_name" type="text" value="${esc(t.name)}" list="names" autocapitalize="sentences"><datalist id="names">${[...new Set(S.tx.slice(-200).map(x => x.name).filter(Boolean))].slice(-40).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
       <label class="f"><span>Note (optional)</span><input id="t_desc" type="text" value="${esc(t.desc)}"></label>
       <label class="f"><span>Date & time</span><input id="t_date" type="datetime-local" value="${dtLocal(t.date)}"></label>
       ${mode === 'planned' ? `<label class="f"><span>Repeat</span><select id="t_rep">${REPEATS.map(([v, l]) => `<option value="${v}" ${t.repeat === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
@@ -687,7 +684,7 @@ function openTx(init = {}, mode = 'tx') {
       const ap = $('[data-addpart]'); if (ap) ap.onclick = () => { sync(); t.parts.push({ accountId: S.accounts.find(x => x.active !== false)?.id, sum: null }); draw(); };
       $$('[data-delpart]').forEach(bt => bt.onclick = () => { sync(); t.parts.splice(+bt.dataset.delpart, 1); if (t.parts.length < 2) { const p0 = t.parts[0]; if (p0) { t.accountId = p0.accountId; t.sum = p0.sum; } t.split = false; t.parts = null; } draw(); });
       $$('[data-pf=sum]').forEach(el => el.oninput = () => { sync(); const tt = $('#splitTotal'); if (tt) tt.textContent = splitTotal(); });
-      if (!isEdit && !t.sum) setTimeout(() => $('#t_sum')?.focus(), 80);
+      if (!isEdit && !t.sum && !t.name) setTimeout(() => ($('#t_name') || $('#t_sum'))?.focus(), 80);
       if ($('#t_del')) $('#t_del').onclick = () => (mode === 'tx' && init.type === 'prepayment' && prepayUsed(init.id) > 0) ? toast('Delete the expenses paid from this prepayment first') : confirmBox('Delete this ' + (mode === 'planned' ? 'planned operation' : 'transaction') + '?', () => {
         if (mode === 'planned') S.planned = S.planned.filter(x => x.id !== init.id); else S.tx = S.tx.filter(x => !exSet.has(x.id));
         save(); render();
@@ -749,7 +746,7 @@ function editAccount(id) {
   if (!S.currencies.length) return openSetup(() => editAccount());
   form(a ? 'Edit account' : 'New account', [
     { k: 'name', label: 'Name', value: a?.name || '' },
-    { k: 'icon', label: 'Icon', type: 'select', value: a?.icon || '💵', options: ACC_ICONS.map(i => [i, i]) },
+    { k: 'icon', label: 'Icon', type: 'icon', value: a?.icon || 'svg:wallet-blue' },
     { k: 'cur', label: 'Currency', type: 'select', value: a?.currencyId || S.settings.defCur, options: S.currencies.map(c => [c.id, c.short + ' – ' + (c.name || '')]) },
     { k: 'open', label: a ? 'Opening balance (your balance as imported / before new entries)' : 'Current balance', type: 'number', value: a?.opening ?? 0 },
     { k: 'active', label: 'Active', type: 'checkbox', value: a ? a.active !== false : true },
@@ -918,6 +915,7 @@ const actions = {
   editacc: v => editAccount(v), editcat: (v, el) => editCategory(v, el.dataset.t), cattype: v => { U.catType = v; render(); },
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
   addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => editRepay(v, el.dataset.arg),
+  menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph.kind = 'month'; U.ph.ref = Date.now(); U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   accfilter: v => { U.hf.acc = v; U.ph.kind = 'all'; U.tab = 'hist'; U.stack = []; render(); },
   repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; U.ph = { ...U.pr }; U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },

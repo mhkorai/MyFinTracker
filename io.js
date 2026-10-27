@@ -152,8 +152,9 @@ const PM_SYMBOLS = { '$': 'USD', '€': 'EUR', '£': 'GBP', '₽': 'RUB', '¥': 
 const PM_RATES_SAR = { SAR: 1, USD: 3.75, AED: 1.0211, PKR: 0.0134, EUR: 4.35, GBP: 5.0, INR: 0.0447, KWD: 12.2, QAR: 1.03, BHD: 9.95, OMR: 9.74, EGP: 0.077, TRY: 0.09, CNY: 0.52, JPY: 0.025 };
 function pmIcon(name) {
   const n = name.toLowerCase();
-  if (/credit card|card/.test(n)) return '💳'; if (/^cash|wallet/.test(n)) return '💵'; if (/prize|bond|invest/.test(n)) return '🎟️';
-  if (/binance|mexc|bybit|crypto/.test(n)) return '🪙'; if (/pay|stc|jazz|wallet/.test(n)) return '📱'; return '🏦';
+  if (/credit card|card/.test(n)) return 'svg:card-blue'; if (/^cash/.test(n)) return 'svg:bills-green'; if (/prize|bond/.test(n)) return 'svg:deposit-orange';
+  if (/invest/.test(n)) return 'svg:chart-purple'; if (/binance|mexc|bybit|crypto/.test(n)) return 'svg:chart-orange'; if (/pay|stc|jazz|wallet/.test(n)) return 'svg:phone-pink';
+  if (/saving|reserve/.test(n)) return 'svg:piggy-green'; return 'svg:bank-teal';
 }
 function financePMToState(d) {
   const N = { v: 1, settings: { ...S.settings, defCur: null, setup: true }, currencies: [], accounts: [], categories: [], tx: [], templates: [], planned: [], budgets: [], debts: [] };
