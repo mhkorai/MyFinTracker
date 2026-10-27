@@ -290,15 +290,12 @@ function viewHome() {
   const bal = balances();
   const active = S.accounts.filter(a => a.active !== false);
   const total = active.reduce((m, a) => addBy(m, a.currencyId, bal[a.id] || 0), new Map());
-  const [mf, mt] = rangeOf({ kind: 'month', ref: Date.now() });
-  const m = sumRangeBy(mf, mt);
   const now = Date.now();
   let h = header('Expense Tracker', { right: `<button class="icon-btn" data-a="go" data-v="settings" aria-label="Settings">⚙︎</button>` }) + '<div class="wrap">';
   if (S.tx.length && now - (S.settings.lastBackup || 0) > 14 * DAY) {
     h += `<div class="banner">⚠️<b>${S.settings.lastBackup ? 'Last backup was over 2 weeks ago.' : 'No backup yet.'} Your data lives only on this phone.</b><button class="btn sm" data-a="go" data-v="data" style="width:auto">Back up</button></div>`;
   }
-  h += `<div class="card"><h3>Total balance</h3><div class="big" style="font-size:1.6em">${fmtMulti(total)}</div>
-  <div class="sum3"><div><small>Income · ${MONTHS[new Date().getMonth()]}</small><b class="inc">${fmtMulti(m.inc)}</b></div><div><small>Expenses · ${MONTHS[new Date().getMonth()]}</small><b class="exp">${fmtMulti(m.exp)}</b></div></div></div>`;
+  h += `<div class="card"><h3>Total balance</h3><div class="big" style="font-size:1.6em">${fmtMulti(total)}</div></div>`;
   // daily budget
   const db = S.budgets.find(b => b.period === 'daily');
   if (db) { const st = budgetStatus(db); h += `<div class="card"><h3>${st.left >= 0 ? 'Available today' : 'Overspent today'}</h3><div class="big ${st.left >= 0 ? 'inc' : 'exp'}">${fmtB(Math.abs(st.left))}</div></div>`; }
