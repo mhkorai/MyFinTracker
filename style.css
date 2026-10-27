@@ -127,3 +127,8 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 @media (prefers-color-scheme:dark){:root[data-theme=auto] .pp{color:#c084fc}}
 .seg button{font-size:1em;padding:11px 4px}
 .seg .more{flex:0 0 46px;color:var(--brand);font-size:1.15em}
+.splitrow{display:flex;gap:8px;margin:6px 0;align-items:center}
+.splitrow select{flex:1;min-width:0}
+.splitrow input{width:104px;flex:none;text-align:right}
+.splitrow .icon-btn{flex:none;width:34px;height:34px;box-shadow:none;background:var(--bg)}
+.linkbtn{border:0;background:none;color:var(--brand);font-weight:600;padding:0 0 12px;font-size:.95em}
