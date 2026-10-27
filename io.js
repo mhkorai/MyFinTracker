@@ -228,7 +228,7 @@ function financePMToState(d) {
 }
 function finalizeFinancePM(o) {
   const keep = S; S = o.N; o.N.debts.forEach(d => syncDebtTx(d));
-  const b = balances(); const rem = o.N.debts.map(d => [d.name, d.dir, r2(debtRemaining(d)), cur(acc(d.accountId)?.currencyId)?.short]).filter(x => x[2] > 0.005);
+  let b = balances(); o.N.accounts.forEach(x => { x.opening = r2(2 * x.opening - (b[x.id] || 0)); }); b = balances(); const rem = o.N.debts.map(d => [d.name, d.dir, r2(debtRemaining(d)), cur(acc(d.accountId)?.currencyId)?.short]).filter(x => x[2] > 0.005);
   o.rep.balances = o.N.accounts.filter(x => x.active).map(x => [x.name, r2(b[x.id] || 0), cur(x.currencyId)?.short]); o.rep.openDebts = rem; S = keep; return o;
 }
 
@@ -253,7 +253,7 @@ async function doImport() {
     let data; try { data = JSON.parse(t0); } catch (e) { return toast('Could not read this file'); }
     if (data && Array.isArray(data.accounts) && Array.isArray(data.transactions) && Array.isArray(data.categories) && data.currencies) {
       const { N, rep } = finalizeFinancePM(financePMToState(data));
-      return confirmBox(`Replace ALL current data with your FinancePM backup? ${N.accounts.length} accounts, ${N.tx.length} transactions (${rep.transfers} transfers), ${rep.debts} debts. Starting balances come from your FinancePM account balances.`, () => {
+      return confirmBox(`Replace ALL current data with your FinancePM backup? ${N.accounts.length} accounts, ${N.tx.length} transactions (${rep.transfers} transfers), ${rep.debts} debts. Account balances are taken as your current balances.`, () => {
         applyRestoredState(N); save();
         sheet(`<button class="x" data-a="close">✕</button><h2>Import finished ✓</h2><p style="margin:0 0 8px">${N.accounts.length} accounts, ${N.tx.length} transactions, ${N.debts.length} debts and ${N.categories.length} categories were imported.</p>
           <p class="mut" style="font-size:.88em;margin:0 0 8px"><b>Please check two things:</b><br>1. Exchange rates in <b>More → Currencies</b> (${esc(rep.rateGuess.join(', '))} – approximate, they are not in your backup).<br>2. Your account balances on the Home screen against what you expect.</p>
