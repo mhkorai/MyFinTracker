@@ -143,3 +143,9 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 .ipick.on{border-color:var(--brand);background:var(--brand-l)}
 .ipick svg{width:100%;height:100%}
 .dot svg{width:100%;height:100%;display:block}
+
+.iconbtn{display:flex;align-items:center;gap:12px;width:100%;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:8px 12px;margin-top:4px}
+.iconbtn .cur .dot{width:40px;height:40px}
+.acctx{width:100%;display:flex;justify-content:space-between;border:0;background:none;font-weight:700;padding:4px 0;color:var(--text)}
+#acctxlist{max-height:50vh;overflow:auto;margin-top:6px}
+.ipicker[hidden],#acctxlist[hidden]{display:none}

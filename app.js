@@ -557,7 +557,7 @@ function fieldHtml(f) {
   const id = 'f_' + f.k; const v = f.value ?? '';
   let inner;
   if (f.type === 'select') inner = `<select id="${id}">${(f.options || []).map(([ov, ol]) => `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select>`;
-  else if (f.type === 'icon') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><input type="hidden" id="${id}" value="${esc(v)}"><div class="ipicker">${iconPicker(v)}</div></div>`;
+  else if (f.type === 'icon') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><input type="hidden" id="${id}" value="${esc(v)}"><button type="button" class="iconbtn" data-iconopen><span class="cur">${iconDot(v, 40)}</span><span class="mut">Tap to change ▾</span></button><div class="ipicker" hidden>${iconPicker(v)}</div></div>`;
   else if (f.type === 'textarea') inner = `<textarea id="${id}" rows="2">${esc(v)}</textarea>`;
   else if (f.type === 'checkbox') return `<label class="chk"><input type="checkbox" id="${id}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
   else if (f.type === 'multi') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><div class="card" style="margin:4px 0 0;padding:6px 12px;max-height:200px;overflow:auto">${f.options.map(([ov, ol]) => `<label class="chk" style="margin:6px 0"><input type="checkbox" name="${id}" value="${esc(ov)}" ${(v || []).includes(ov) ? 'checked' : ''}> ${esc(ol)}</label>`).join('')}</div></div>`;
@@ -578,13 +578,15 @@ function readField(f) {
 }
 function form(title, fields, onOk, opts = {}) {
   sheet(`<button class="x" data-a="close">✕</button><h2>${esc(title)}</h2><form id="theform" autocomplete="off">${fields.map(fieldHtml).join('')}
-  <div class="btns"><button class="btn" type="submit">${opts.ok || 'Save'}</button></div>${opts.onDelete ? '<div class="btns"><button type="button" class="btn danger" id="fdel">Delete</button></div>' : ''}</form>`);
+  <div class="btns"><button class="btn" type="submit">${opts.ok || 'Save'}</button></div>${opts.onDelete ? '<div class="btns"><button type="button" class="btn danger" id="fdel">Delete</button></div>' : ''}</form>${opts.extraHtml || ''}`);
   $('#theform').onsubmit = e => {
     e.preventDefault(); const v = {}; fields.forEach(f => v[f.k] = readField(f));
     const err = onOk(v); if (err) { toast(err); return; } save(); closeSheet(); render();
   };
   if (opts.onDelete) $('#fdel').onclick = () => confirmBox(opts.delMsg || 'Delete this item?', () => { opts.onDelete(); save(); render(); });
-  $$('#theform [data-pick]').forEach(b => b.onclick = () => { $('#f_icon').value = b.dataset.pick; $$('#theform [data-pick]').forEach(x => x.classList.toggle('on', x === b)); });
+  $$('#theform [data-pick]').forEach(b => b.onclick = () => { $('#f_icon').value = b.dataset.pick; $$('#theform [data-pick]').forEach(x => x.classList.toggle('on', x === b)); const c = $('#theform .iconbtn .cur'); if (c) c.innerHTML = iconDot(b.dataset.pick, 40); $('#theform .ipicker').hidden = true; });
+  const io = $('#theform [data-iconopen]'); if (io) io.onclick = () => { const pk = $('#theform .ipicker'); pk.hidden = !pk.hidden; };
+  if (opts.after) opts.after();
   if (opts.onChange) $$('#theform select').forEach(s => s.onchange = () => opts.onChange());
 }
 
@@ -742,6 +744,7 @@ function accountChoices(t) {
     .forEach(p => list.push(['pp:' + p.id, `🅿 Prepayment: ${p.name || 'Unnamed'} (${fmt(prepayLeft(p, t._ex || t.id), acc(p.accountId)?.currencyId)} left)`]));
   return list;
 }
+const accTx = id => collapse(S.tx.filter(t => t.accountId === id || t.toAccountId === id).sort((x, y) => y.date - x.date));
 function editAccount(id) {
   const a = id ? acc(id) : null;
   if (!S.currencies.length) return openSetup(() => editAccount());
@@ -756,7 +759,7 @@ function editAccount(id) {
       if (v.def) S.accounts.forEach(x => x.isDefault = false);
       const rec = { name: v.name, icon: v.icon, currencyId: v.cur, opening: v.open || 0, active: v.active, isDefault: v.def };
       if (a) Object.assign(a, rec); else S.accounts.push({ id: uid(), ...rec });
-    }, a ? { onDelete: () => { const used = S.tx.some(t => t.accountId === a.id || t.toAccountId === a.id); if (used) { a.active = false; toast('Account has transactions – marked inactive'); } else S.accounts = S.accounts.filter(x => x.id !== a.id); }, delMsg: 'Delete this account? (If it has transactions it will be hidden instead.)' } : {});
+    }, a ? { extraHtml: `<div class="card" style="margin:14px 0 0"><button type="button" class="acctx" data-acctx>Transactions (${accTx(a.id).length}) <span>▾</span></button><div id="acctxlist" hidden></div></div>`, after: () => { const bt = $('[data-acctx]'); if (bt) bt.onclick = () => { const l = $('#acctxlist'); if (l.hidden && !l.dataset.done) { const list = accTx(a.id); l.innerHTML = list.length ? list.map(t => txRowHtml(t, { time: true })).join('') : emptyMsg('No transactions for this account.'); l.dataset.done = 1; } l.hidden = !l.hidden; bt.querySelector('span').textContent = l.hidden ? '▾' : '▴'; }; }, onDelete: () => { const used = S.tx.some(t => t.accountId === a.id || t.toAccountId === a.id); if (used) { a.active = false; toast('Account has transactions – marked inactive'); } else S.accounts = S.accounts.filter(x => x.id !== a.id); }, delMsg: 'Delete this account? (If it has transactions it will be hidden instead.)' } : {});
 }
 function editCategory(id, type) {
   const c = id && cat(id) ? cat(id) : null; const tp = c?.type || type || U.catType;
