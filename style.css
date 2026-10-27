@@ -125,3 +125,5 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 .seg button{font-size:.88em;padding:8px 2px}
 .seg button.on.p{color:#9333ea}
 @media (prefers-color-scheme:dark){:root[data-theme=auto] .pp{color:#c084fc}}
+.seg button{font-size:1em;padding:11px 4px}
+.seg .more{flex:0 0 46px;color:var(--brand);font-size:1.15em}

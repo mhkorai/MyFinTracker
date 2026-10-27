@@ -582,9 +582,10 @@ function openTx(init = {}, mode = 'tx') {
     const t = Object.assign({ type: 'expense', accountId: (S.accounts.find(a => a.active !== false && a.isDefault) || S.accounts.find(a => a.active !== false) || S.accounts[0])?.id, date: Date.now(), sum: null, name: '', desc: '', categoryId: '', toAccountId: '', toSum: null, repeat: 'none' }, init);
     if (t.prepayId) t.accountId = 'pp:' + t.prepayId;
     if (mode === 'planned' && !init.id) t.date = Date.now() + DAY;
-    let tplSave = false;
+    let tplSave = false, moreOpen = false;
     const draw = () => {
       const isTr = t.type === 'transfer';
+      const showMore = moreOpen || t.type === 'prepayment';
       if (t.type !== 'expense' && String(t.accountId).startsWith('pp:')) t.accountId = resolveAcc(t.accountId)?.id || S.accounts[0]?.id;
       const a = resolveAcc(t.accountId), b = acc(t.toAccountId);
       const cross = isTr && a && b && a.currencyId !== b.currencyId;
@@ -592,7 +593,8 @@ function openTx(init = {}, mode = 'tx') {
       if (isTr && (!t.toAccountId || t.toAccountId === t.accountId)) t.toAccountId = S.accounts.find(x => x.id !== t.accountId)?.id || '';
       const tpls = !isEdit && mode === 'tx' ? S.templates : [];
       sheet(`<button class="x" data-a="close">✕</button><h2>${mode === 'planned' ? (init.id ? 'Edit planned operation' : 'Planned operation') : isEdit ? 'Edit transaction' : 'New transaction'}</h2>
-      <div class="seg" style="margin-bottom:12px">${[['expense', 'Expense', 'e'], ['income', 'Income', 'i'], ['transfer', 'Transfer', 't'], ['prepayment', 'Prepayment', 'p']].map(([k, l, c]) => `<button type="button" class="${t.type === k ? 'on ' + c : ''}" data-ty="${k}">${l}</button>`).join('')}</div>
+      <div class="seg" style="margin-bottom:${showMore ? 6 : 12}px">${[['expense', 'Expense', 'e'], ['income', 'Income', 'i'], ['transfer', 'Transfer', 't']].map(([k, l, c]) => `<button type="button" class="${t.type === k ? 'on ' + c : ''}" data-ty="${k}">${l}</button>`).join('')}${t.type === 'prepayment' ? '' : `<button type="button" class="more" data-more aria-label="More types" title="Prepayment">${showMore ? '▴' : '▾'}</button>`}</div>
+      ${showMore ? `<div class="seg" style="margin-bottom:12px"><button type="button" class="${t.type === 'prepayment' ? 'on p' : ''}" data-ty="prepayment">🅿 Prepayment</button></div>` : ''}
       ${tpls.length ? `<div style="display:flex;gap:6px;overflow:auto;margin-bottom:12px">${tpls.map(x => `<button type="button" class="btn sm sec" style="white-space:nowrap" data-tpl="${x.id}">${esc(x.tplName || x.name || catPath(x.categoryId))}</button>`).join('')}</div>` : ''}
       <form id="txf" autocomplete="off">
       <label class="f"><span>Amount ${a ? '(' + esc(cur(a.currencyId)?.short) + ')' : ''}</span><input class="amtin" id="t_sum" type="text" inputmode="decimal" placeholder="0" value="${t.sum ?? ''}"></label>
@@ -608,6 +610,7 @@ function openTx(init = {}, mode = 'tx') {
       <div class="btns"><button class="btn" type="submit">Save</button></div>
       ${isEdit || (mode === 'planned' && init.id) ? '<div class="btns"><button type="button" class="btn danger" id="t_del">Delete</button></div>' : ''}</form>`);
       $$('[data-ty]').forEach(b => b.onclick = () => { sync(); t.type = b.dataset.ty; draw(); });
+      const mb = $('[data-more]'); if (mb) mb.onclick = () => { sync(); moreOpen = !moreOpen; draw(); };
       $$('[data-tpl]').forEach(b => b.onclick = () => { sync(); const x = S.templates.find(z => z.id === b.dataset.tpl); Object.assign(t, { type: x.type, accountId: x.accountId, categoryId: x.categoryId, sum: x.sum, name: x.name, desc: x.desc, toAccountId: x.toAccountId, toSum: x.toSum }); draw(); });
       $('#t_acc').onchange = () => { sync(); draw(); };
       if ($('#t_to')) $('#t_to').onchange = () => { sync(); draw(); };
