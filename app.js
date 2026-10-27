@@ -924,6 +924,10 @@ addEventListener('pagehide', () => flush());
   await load(); applyTheme(); render(); lockIfNeeded();
   if (!S.settings.setup && !S.accounts.length) setTimeout(() => openSetup(() => { save(); render(); }), 300);
   try { navigator.storage?.persist?.(); } catch (e) { }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { });
+  if ('serviceWorker' in navigator) {
+    const had = !!navigator.serviceWorker.controller; let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js').then(r => { document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update().catch(() => { }); }); }).catch(() => { });
+  }
   window.__S = () => S;
 })();
