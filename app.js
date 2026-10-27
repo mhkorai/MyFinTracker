@@ -98,12 +98,14 @@ function catSorted(type) {
 }
 function color(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; }
 function balances() {
-  const m = {}; S.accounts.forEach(a => m[a.id] = a.opening || 0);
+  const m = {}, cut = {}; S.accounts.forEach(a => { m[a.id] = a.opening || 0; cut[a.id] = a.asOf || 0; });
+  // transactions dated on/before an account's "balance as of" moment are history only (already inside its stored balance)
+  const on = (id, t) => !(cut[id] >= t.date);
   S.tx.forEach(t => {
-    if (t.type === 'income') m[t.accountId] = (m[t.accountId] ?? 0) + t.sum;
-    else if (t.type === 'expense') { if (!t.prepayId) m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; }
-    else if (t.type === 'prepayment') m[t.accountId] = (m[t.accountId] ?? 0) - t.sum;
-    else if (t.type === 'transfer') { m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; m[t.toAccountId] = (m[t.toAccountId] ?? 0) + (t.toSum ?? t.sum); }
+    if (t.type === 'income') { if (on(t.accountId, t)) m[t.accountId] = (m[t.accountId] ?? 0) + t.sum; }
+    else if (t.type === 'expense') { if (!t.prepayId && on(t.accountId, t)) m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; }
+    else if (t.type === 'prepayment') { if (on(t.accountId, t)) m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; }
+    else if (t.type === 'transfer') { if (on(t.accountId, t)) m[t.accountId] = (m[t.accountId] ?? 0) - t.sum; if (on(t.toAccountId, t)) m[t.toAccountId] = (m[t.toAccountId] ?? 0) + (t.toSum ?? t.sum); }
   });
   return m;
 }
@@ -749,7 +751,7 @@ function editAccount(id) {
     { k: 'name', label: 'Name', value: a?.name || '' },
     { k: 'icon', label: 'Icon', type: 'select', value: a?.icon || '💵', options: ACC_ICONS.map(i => [i, i]) },
     { k: 'cur', label: 'Currency', type: 'select', value: a?.currencyId || S.settings.defCur, options: S.currencies.map(c => [c.id, c.short + ' – ' + (c.name || '')]) },
-    { k: 'open', label: a ? 'Opening balance (balance before your first transaction)' : 'Current balance', type: 'number', value: a?.opening ?? 0 },
+    { k: 'open', label: a ? 'Opening balance (your balance as imported / before new entries)' : 'Current balance', type: 'number', value: a?.opening ?? 0 },
     { k: 'active', label: 'Active', type: 'checkbox', value: a ? a.active !== false : true },
     { k: 'def', label: 'Use as default account', type: 'checkbox', value: !!a?.isDefault }], v => {
       if (!v.name) return 'Enter a name';

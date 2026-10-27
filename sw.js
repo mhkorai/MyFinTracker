@@ -1,4 +1,4 @@
-const CACHE = 'expense-tracker-v7';
+const CACHE = 'expense-tracker-v8';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'io.js', 'xlsx.mini.min.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {

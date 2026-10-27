@@ -38,8 +38,8 @@ function buildWorkbook() {
   const accName = id => acc(id)?.name || '';
   add('Info', [['Key', 'Value'], ['App', 'MyFinTracker'], ['Format version', 2], ['Exported at', new Date().toISOString()], ['Default currency', defCur().short || '']], [22, 34]);
   add('Currencies', [['ID', 'Code', 'Name', 'Decimals', 'Rate to default currency'], ...S.currencies.map(c => [c.id, c.short, c.name || '', c.dec, c.id === S.settings.defCur ? 1 : c.rate])], [14, 10, 22, 10, 24]);
-  add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)'],
-  ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0)])], [14, 34, 6, 10, 16, 8, 8, 26]);
+  add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)', 'Balance as of (ms)'],
+  ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0), a.asOf || ''])], [14, 34, 6, 10, 16, 8, 8, 26]);
   const cats = [...catSorted('expense'), ...catSorted('income')];
   add('Categories', [['ID', 'Type', 'Name', 'Parent ID', 'Order', 'Full name (info only)'], ...cats.map(c => [c.id, c.type, c.name, c.parentId || '', c.order, catPath(c.id)])], [14, 10, 28, 14, 8, 40]);
   const tx = [...S.tx].filter(t => !t.debtId || t.debtId === 'legacy' || t.debtId === 'adjust').sort((a, b) => a.date - b.date || (a.gi || 0) - (b.gi || 0));
@@ -74,7 +74,7 @@ function restoreFromWorkbook(wb) {
   get('Accounts').forEach(r => {
     const name = String(col(r, 'Name')).trim(); if (!name) return;
     let c = curByCode(col(r, 'Currency')); if (!c) { c = { id: uid(), short: String(col(r, 'Currency') || 'CUR'), name: '', dec: 2, rate: 1 }; N.currencies.push(c); }
-    N.accounts.push({ id: String(col(r, 'ID') || uid()), name, icon: String(col(r, 'Icon') || '💵'), currencyId: c.id, opening: numOf(col(r, 'Opening balance'), 0), active: col(r, 'Active') === '' ? true : isYes(col(r, 'Active')), isDefault: isYes(col(r, 'Default')) });
+    N.accounts.push({ id: String(col(r, 'ID') || uid()), name, icon: String(col(r, 'Icon') || '💵'), currencyId: c.id, opening: numOf(col(r, 'Opening balance'), 0), active: col(r, 'Active') === '' ? true : isYes(col(r, 'Active')), isDefault: isYes(col(r, 'Default')), asOf: numOf(col(r, 'Balance as of (ms)'), 0) || 0 });
   });
   if (!N.settings.defCur) N.settings.defCur = N.currencies[0]?.id || null;
   get('Categories').forEach(r => { const name = String(col(r, 'Name')).trim(); if (!name) return; N.categories.push({ id: String(col(r, 'ID') || uid()), name, type: /inc/i.test(col(r, 'Type')) ? 'income' : 'expense', parentId: col(r, 'Parent ID') ? String(col(r, 'Parent ID')) : null, order: numOf(col(r, 'Order'), 0) }); });
@@ -228,7 +228,7 @@ function financePMToState(d) {
 }
 function finalizeFinancePM(o) {
   const keep = S; S = o.N; o.N.debts.forEach(d => syncDebtTx(d));
-  let b = balances(); o.N.accounts.forEach(x => { x.opening = r2(2 * x.opening - (b[x.id] || 0)); }); b = balances(); const rem = o.N.debts.map(d => [d.name, d.dir, r2(debtRemaining(d)), cur(acc(d.accountId)?.currencyId)?.short]).filter(x => x[2] > 0.005);
+  const nowT = Date.now(); o.N.accounts.forEach(x => { x.asOf = nowT; }); const b = balances(); const rem = o.N.debts.map(d => [d.name, d.dir, r2(debtRemaining(d)), cur(acc(d.accountId)?.currencyId)?.short]).filter(x => x[2] > 0.005);
   o.rep.balances = o.N.accounts.filter(x => x.active).map(x => [x.name, r2(b[x.id] || 0), cur(x.currencyId)?.short]); o.rep.openDebts = rem; S = keep; return o;
 }
 
