@@ -174,7 +174,24 @@ function back() { U.sortAcc = false; U.stack.pop(); render(); }
 function tab(t) { U.tab = t; U.stack = []; render(); window.scrollTo(0, 0); }
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
-function sheet(html) { $('#sheet-root').innerHTML = `<div class="back" id="sback"><div class="sheet">${html}</div></div>`; }
+function sheet(html) { $('#sheet-root').innerHTML = `<div class="back" id="sback"><div class="sheet">${html}</div></div>`; enhanceAccSelects(); }
+// account drop-downs show the real icons: selects that only contain accounts get a custom picker
+function enhanceAccSelects() {
+  $$('#sheet-root select').forEach(sel => {
+    const opts = [...sel.options]; if (!opts.length || !opts.every(o => acc(o.value) || o.value.startsWith('pp:'))) return;
+    const label = o => { const a = acc(o.value); return a ? `${a.name} (${cur(a.currencyId)?.short || ''})` : o.textContent.trim(); };
+    const ic = o => { const a = acc(o.value); return a ? iconDot(a.icon, 32) : '<div class="dot" style="background:#9333ea;width:32px;height:32px">🅿</div>'; };
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'accpick';
+    const paint = () => { const o = sel.options[sel.selectedIndex]; btn.innerHTML = `${o ? ic(o) : ''}<span class="grow">${o ? esc(label(o)) : ''}</span><span class="mut">▾</span>`; };
+    paint(); sel.style.display = 'none'; sel.parentNode.insertBefore(btn, sel);
+    btn.onclick = e => {
+      e.preventDefault(); const ov = document.createElement('div'); ov.className = 'pickov';
+      ov.innerHTML = `<div class="pickbox">${opts.map((o, i) => `<div class="row tap ${i === sel.selectedIndex ? 'sel' : ''}" data-i="${i}">${ic(o)}<div class="grow t">${esc(label(o))}</div></div>`).join('')}</div>`;
+      ov.onclick = ev => { const r = ev.target.closest('[data-i]'); if (r) { sel.selectedIndex = +r.dataset.i; sel.dispatchEvent(new Event('change', { bubbles: true })); paint(); } ov.remove(); };
+      document.body.appendChild(ov);
+    };
+  });
+}
 function closeSheet() { $('#sheet-root').innerHTML = ''; }
 function confirmBox(msg, onYes, yesLabel = 'Delete') {
   sheet(`<h2>${esc(msg)}</h2><div class="btns"><button class="btn sec" data-a="close">Cancel</button><button class="btn danger" id="cyes" style="background:var(--exp);color:#fff">${esc(yesLabel)}</button></div>`);
@@ -242,7 +259,7 @@ function txRowHtml(t, opts = {}) {
     }
     ic = esc((cc?.name || '?').charAt(0).toUpperCase()); dot = color(catRoot(t.categoryId)?.id || t.categoryId);
   }
-  return `<div class="row tap" data-a="edittx" data-v="${t.id}"><div class="dot" style="background:${dot}">${ic}</div><div class="grow"><div class="t">${esc(title)}</div><div class="s">${sub}${opts.time ? ' · ' + hm(t.date) : ''}</div></div><div class="amt ${cls}">${amt}</div></div>`;
+  return `<div class="row tap" data-a="edittx" data-v="${t.id}">${a ? iconDot(a.icon) : `<div class="dot" style="background:${dot}">${ic}</div>`}<div class="grow"><div class="t">${esc(title)}</div><div class="s">${sub}${opts.time ? ' · ' + hm(t.date) : ''}</div></div><div class="amt ${cls}">${amt}</div></div>`;
 }
 
 function sumRangeBy(from, to) {
