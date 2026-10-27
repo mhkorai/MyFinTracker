@@ -171,7 +171,7 @@ function shiftPeriod(p, dir) {
 }
 
 // ───────────────────────── UI state ─────────────────────────
-const U = { tab: 'home', stack: [], ph: { kind: 'month', ref: Date.now(), from: null, to: null }, pr: { kind: 'month', ref: Date.now(), from: null, to: null },
+const U = { tab: 'home', stack: [], ph: { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }, pr: { kind: 'month', ref: Date.now(), from: null, to: null },
   hf: { type: 'all', acc: '', cat: '', q: '' }, rep: { type: 'pie-exp', acc: '', leaf: false }, hideZero: true, catType: 'expense' };
 const page = () => U.stack[U.stack.length - 1] || null;
 function go(name, arg) { U.sortAcc = false; U.stack.push({ name, arg }); render(); window.scrollTo(0, 0); }
@@ -343,12 +343,16 @@ function viewHistory() {
   const f = U.hf; const list = filteredTx(U.ph, f);
   const inc = new Map(), exp = new Map();
   list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum); });
-  let h = header('History') + '<div class="wrap">' + periodBar(U.ph, 'ph');
+  const PER = [['all', 'All time'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['year', 'This year'], ['lastyear', 'Last year'], ['custom', 'Custom dates']];
+  const psel = U.ph.sel || (U.ph.kind === 'custom' ? 'custom' : 'all');
+  let h = header('History') + '<div class="wrap">';
   h += `<div class="search"><input type="search" placeholder="Search name, note, category" value="${esc(f.q)}" data-a="hq"></div>
   <div class="btns" style="margin:0 0 10px"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
   <select data-a="hacc"><option value="">All accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
+  <div class="btns" style="margin:0 0 10px"><select data-a="hper">${PER.map(([v, l]) => `<option value="${v}" ${psel === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+  ${psel === 'custom' ? `<div class="btns" style="margin:0 0 10px"><input type="date" value="${ymd(U.ph.from || Date.now())}" data-a="pfrom" data-k="ph"><input type="date" value="${ymd(U.ph.to || Date.now())}" data-a="pto" data-k="ph"></div>` : ''}
   <div class="btns" style="margin:0 0 10px"><select data-a="hcat"><option value="">All categories</option>${[...catSorted('expense'), ...catSorted('income')].map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${c.type === 'income' ? '↓ ' : ''}${esc(catPath(c.id))}</option>`).join('')}</select></div>
-  <div class="card"><div class="sum3" style="margin:0"><div><small>Income</small><b class="inc">${fmtMulti(inc)}</b></div><div><small>Expenses</small><b class="exp">${fmtMulti(exp)}</b></div></div></div>`;
+`;
   if (!list.length) return h + emptyMsg('No transactions for this period.') + '</div>';
   const groups = new Map();
   list.forEach(t => { const k = +startOfDay(t.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
@@ -356,6 +360,9 @@ function viewHistory() {
     const net = new Map(); arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; addBy(net, acc(t.accountId)?.currencyId, t.type === 'income' ? t.sum : -t.sum); });
     h += `<div class="dayhead"><span>${dayLabel(k)}</span><span style="text-align:right">${fmtMulti(net, true)}</span></div><div class="card" style="padding:4px 14px">${collapse(arr).map(t => txRowHtml(t, { time: true })).join('')}</div>`;
   });
+  const ft = f.type, showI = ft === 'all' || ft === 'income', showE = ft === 'all' || ft === 'expense';
+  const inl = m => { const e = [...m].filter(([, v]) => Math.abs(v) > 1e-7); return e.length ? e.map(([k, v]) => fmt(v, k)).join(' · ') : fmt(0, defCur().id); };
+  if (showI || showE) h += `<div class="totline">${showI ? `<span>Income <b class="inc">${inl(inc)}</b></span>` : ''}${showE ? `<span>Expenses <b class="exp">${inl(exp)}</b></span>` : ''}</div>`;
   return h + '</div>';
 }
 
@@ -960,11 +967,11 @@ const actions = {
   editacc: v => editAccount(v), editcat: (v, el) => editCategory(v, el.dataset.t), cattype: v => { U.catType = v; render(); },
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
   addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => editRepay(v, el.dataset.arg),
-  menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph.kind = 'month'; U.ph.ref = Date.now(); U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
+  menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
   accmove: (v, el) => { const i = S.accounts.findIndex(x => x.id === v), j = i + +el.dataset.arg; if (i < 0 || j < 0 || j >= S.accounts.length) return; [S.accounts[i], S.accounts[j]] = [S.accounts[j], S.accounts[i]]; save(); render(); },
-  accfilter: v => { U.hf.acc = v; U.ph.kind = 'all'; U.tab = 'hist'; U.stack = []; render(); },
-  repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; U.ph = { ...U.pr }; U.tab = 'hist'; U.stack = []; render(); },
+  accfilter: v => { U.hf.acc = v; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); },
+  repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; { const [ra, rb] = rangeOf(U.pr); U.ph = U.pr.kind === 'all' ? { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' } : { kind: 'custom', ref: Date.now(), from: ra, to: rb - 1, sel: 'custom' }; } U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },
   pyear: v => { const d = new Date(U.pr.ref); d.setFullYear(d.getFullYear() + +v); U.pr.ref = +d; render(); },
   hidezero: (v, el) => { U.hideZero = el.checked; render(); },
@@ -978,6 +985,14 @@ function advancePlanned(p) {
   else S.planned = S.planned.filter(x => x.id !== p.id);
 }
 const changes = {
+  hper: el => {
+    const v = el.value, n = Date.now(), d = new Date(n);
+    const set = (kind, ref) => { U.ph = { kind, ref, from: null, to: null, sel: v }; };
+    if (v === 'all') set('all', n); else if (v === 'today') set('day', n); else if (v === 'week') set('week', n); else if (v === 'month') set('month', n);
+    else if (v === 'lastmonth') set('month', +new Date(d.getFullYear(), d.getMonth() - 1, 15)); else if (v === 'year') set('year', n); else if (v === 'lastyear') set('year', +new Date(d.getFullYear() - 1, 5, 15));
+    else U.ph = { kind: 'custom', ref: n, from: U.ph.from || n - 30 * DAY, to: U.ph.to || n, sel: 'custom' };
+    render();
+  },
   pkind: (el) => { const p = U[el.dataset.k]; p.kind = el.value; if (p.kind === 'custom') { p.from = p.from || Date.now() - 30 * DAY; p.to = p.to || Date.now(); } render(); },
   pfrom: el => { U[el.dataset.k].from = +new Date(el.value + 'T00:00'); render(); }, pto: el => { U[el.dataset.k].to = +new Date(el.value + 'T00:00'); render(); },
   htype: el => { U.hf.type = el.value; render(); }, hacc: el => { U.hf.acc = el.value; render(); }, hcat: el => { U.hf.cat = el.value; render(); },
