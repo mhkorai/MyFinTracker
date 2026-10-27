@@ -169,8 +169,8 @@ function shiftPeriod(p, dir) {
 const U = { tab: 'home', stack: [], ph: { kind: 'month', ref: Date.now(), from: null, to: null }, pr: { kind: 'month', ref: Date.now(), from: null, to: null },
   hf: { type: 'all', acc: '', cat: '', q: '' }, rep: { type: 'pie-exp', acc: '', leaf: false }, hideZero: true, catType: 'expense' };
 const page = () => U.stack[U.stack.length - 1] || null;
-function go(name, arg) { U.stack.push({ name, arg }); render(); window.scrollTo(0, 0); }
-function back() { U.stack.pop(); render(); }
+function go(name, arg) { U.sortAcc = false; U.stack.push({ name, arg }); render(); window.scrollTo(0, 0); }
+function back() { U.sortAcc = false; U.stack.pop(); render(); }
 function tab(t) { U.tab = t; U.stack = []; render(); window.scrollTo(0, 0); }
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
@@ -450,9 +450,10 @@ function renderPage(pg) {
 }
 
 function pgAccounts() {
-  const bal = balances();
-  return header('Accounts', { back: 1, right: `<button class="icon-btn" data-a="editacc">+</button>` }) + `<div class="wrap"><div class="card">${S.accounts.length ? S.accounts.map(a =>
-    `<div class="row tap" data-a="editacc" data-v="${a.id}">${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div><div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div></div>`).join('') : emptyMsg('No accounts created')}</div></div>`;
+  const bal = balances(); const so = !!U.sortAcc;
+  const right = `<button class="icon-btn" data-a="sortacc" aria-label="Sort" title="Sort" style="${so ? 'background:var(--brand);color:#fff' : ''}">${so ? '✓' : '⇅'}</button><button class="icon-btn" data-a="editacc">+</button>`;
+  return header('Accounts', { back: 1, right }) + `<div class="wrap">${so ? '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap ✓. This order is used everywhere.</p>' : ''}<div class="card">${S.accounts.length ? S.accounts.map((a, i) =>
+    `<div class="row ${so ? '' : 'tap'}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`}>${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${i === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${i === S.accounts.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : `<div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div>`}</div>`).join('') : emptyMsg('No accounts created yet.')}</div></div>`;
 }
 function pgCategories() {
   const t = U.catType;
@@ -916,6 +917,8 @@ const actions = {
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
   addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => editRepay(v, el.dataset.arg),
   menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph.kind = 'month'; U.ph.ref = Date.now(); U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
+  sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
+  accmove: (v, el) => { const i = S.accounts.findIndex(x => x.id === v), j = i + +el.dataset.arg; if (i < 0 || j < 0 || j >= S.accounts.length) return; [S.accounts[i], S.accounts[j]] = [S.accounts[j], S.accounts[i]]; save(); render(); },
   accfilter: v => { U.hf.acc = v; U.ph.kind = 'all'; U.tab = 'hist'; U.stack = []; render(); },
   repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; U.ph = { ...U.pr }; U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },
