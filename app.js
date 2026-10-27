@@ -68,18 +68,23 @@ const cat = id => S.categories.find(c => c.id === id);
 const defCur = () => cur(S.settings.defCur) || S.currencies[0] || { id: '', short: '', dec: 2, rate: 1 };
 const rateOf = id => (cur(id) || defCur()).rate || 1;
 const toBase = (n, curId) => n * rateOf(curId);
-function fmt(n, curId, signed) {
+function fmtNum(n, curId) { // accounting style: negatives in brackets, no minus sign
   const c = cur(curId) || defCur();
   const f = Math.pow(10, c.dec); const rounded = Math.round(Math.abs(n) * f) / f;
-  const s = rounded.toLocaleString('en-US', { minimumFractionDigits: c.dec, maximumFractionDigits: c.dec });
-  return (rounded > 0 && n < 0 ? '−' : signed && rounded > 0 && n > 0 ? '+' : '') + s + ' ' + (c.short || '');
+  const t = rounded.toLocaleString('en-US', { minimumFractionDigits: c.dec, maximumFractionDigits: c.dec });
+  return rounded > 0 && n < 0 ? `(${t})` : t;
+}
+function fmt(n, curId, signed) {
+  const c = cur(curId) || defCur(); const t = fmtNum(n, curId);
+  return t.startsWith('(') ? `(${t.slice(1, -1)} ${c.short || ''})` : t + ' ' + (c.short || '');
 }
 const fmtB = (n, signed) => fmt(n, defCur().id, signed);
 // per-currency totals (no conversion between currencies)
 const addBy = (m, curId, v) => { const k = (cur(curId) || defCur()).id; m.set(k, (m.get(k) || 0) + v); return m; };
-function fmtMulti(m, signed) {
+function fmtMulti(m) {
   const e = [...m].filter(([, v]) => Math.abs(v) > 0.0000001).sort((a, b) => (a[0] === defCur().id ? -1 : b[0] === defCur().id ? 1 : (cur(a[0])?.short || '').localeCompare(cur(b[0])?.short || '')));
-  return e.length ? e.map(([k, v]) => `<span style="display:block">${fmt(v, k, signed)}</span>`).join('') : `<span style="display:block">${fmt(0, defCur().id)}</span>`;
+  const row = (k, v) => `<span class="mrow"><span class="mc">${esc((cur(k) || defCur()).short || '')}</span><span class="ma">${fmtNum(v, k)}</span></span>`;
+  return e.length ? e.map(([k, v]) => row(k, v)).join('') : row(defCur().id, 0);
 }
 function catPath(id) {
   const c = cat(id); if (!c) return '—';
