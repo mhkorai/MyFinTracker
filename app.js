@@ -8,7 +8,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const DAY = 864e5;
 const PALETTE = ['#0f766e', '#2563eb', '#d97706', '#9333ea', '#dc2626', '#0891b2', '#65a30d', '#db2777', '#4f46e5', '#ea580c', '#059669', '#7c3aed', '#be123c', '#0369a1', '#a16207'];
-const ACC_ICONS = ['💵', '💳', '🏦', '👛', '🪙', '💰', '🏠', '🚗', '🛒', '🎁', '📈', '💼'];
+const ACC_ICONS = ['💵', '💳', '🏦', '👛', '🪙', '💰', '🏠', '🚗', '🛒', '🎁', '📈', '💼', '📱', '🎟️'];
 const PRESET_CUR = [['SAR', 'Saudi Riyal', 2], ['USD', 'US Dollar', 2], ['EUR', 'Euro', 2], ['GBP', 'British Pound', 2], ['AED', 'UAE Dirham', 2],
 ['INR', 'Indian Rupee', 2], ['PKR', 'Pakistani Rupee', 2], ['KWD', 'Kuwaiti Dinar', 3], ['QAR', 'Qatari Riyal', 2], ['BHD', 'Bahraini Dinar', 3],
 ['OMR', 'Omani Rial', 3], ['EGP', 'Egyptian Pound', 2], ['TRY', 'Turkish Lira', 2], ['JPY', 'Japanese Yen', 0], ['CNY', 'Chinese Yuan', 2],
@@ -70,8 +70,9 @@ const rateOf = id => (cur(id) || defCur()).rate || 1;
 const toBase = (n, curId) => n * rateOf(curId);
 function fmt(n, curId, signed) {
   const c = cur(curId) || defCur();
-  const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: c.dec, maximumFractionDigits: c.dec });
-  return (n < 0 ? '−' : signed && n > 0 ? '+' : '') + s + ' ' + (c.short || '');
+  const f = Math.pow(10, c.dec); const rounded = Math.round(Math.abs(n) * f) / f;
+  const s = rounded.toLocaleString('en-US', { minimumFractionDigits: c.dec, maximumFractionDigits: c.dec });
+  return (rounded > 0 && n < 0 ? '−' : signed && rounded > 0 && n > 0 ? '+' : '') + s + ' ' + (c.short || '');
 }
 const fmtB = (n, signed) => fmt(n, defCur().id, signed);
 function catPath(id) {
@@ -218,7 +219,8 @@ function txRowHtml(t, opts = {}) {
     title = t.name || 'Prepayment'; sub = `Prepayment · ${esc(a?.name)} · ${fmt(prepayLeft(t), a?.currencyId)} left`; cls = 'pp'; amt = fmt(-t.sum, a?.currencyId); ic = '🅿'; dot = '#9333ea';
   } else if (t.debtId) {
     const d = S.debts.find(x => x.id === t.debtId);
-    title = t.name || (d ? d.name : 'Debt'); sub = `Debt · ${esc(a?.name)}`; cls = t.type === 'income' ? 'inc' : 'exp'; amt = fmt(t.type === 'income' ? t.sum : -t.sum, a?.currencyId, true); ic = '🤝'; dot = '#9333ea';
+    const adj = t.debtId === 'adjust';
+    title = t.name || (adj ? 'Balance adjustment' : d ? d.name : 'Debt'); sub = `${adj ? 'Balance adjustment' : 'Debt'} · ${esc(a?.name)}`; cls = t.type === 'income' ? 'inc' : 'exp'; amt = fmt(t.type === 'income' ? t.sum : -t.sum, a?.currencyId, true); ic = adj ? '⚖' : '🤝'; dot = adj ? '#64748b' : '#9333ea';
   } else {
     const cc = cat(t.categoryId);
     const cp = cc ? catPath(cc.id) : '—';
@@ -528,11 +530,11 @@ function pgSettings() {
 function pgData() {
   const lb = S.settings.lastBackup;
   return header('Backup & import', { back: 1 }) + `<div class="wrap">
-  <div class="card"><h3>Backup</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Last backup: ${lb ? new Date(lb).toLocaleString() : 'never'}. Save the file to <b>Files</b> / iCloud Drive so you never lose your data.</p>
-  <button class="btn" data-a="exportjson">Export full backup (.json)</button></div>
-  <div class="card"><h3>Export</h3><button class="btn sec" data-a="exportcsv">Export transactions (.csv, opens in Excel)</button></div>
-  <div class="card"><h3>Import</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Restore a backup made by this app, or import a CSV / FinancePM export file.</p>
-  <input type="file" id="impfile" accept=".json,.csv,.txt,.xml,.db,.sqlite,application/json,text/csv" style="margin-bottom:10px"><button class="btn sec" data-a="doimport">Import selected file</button></div></div>`;
+  <div class="card"><h3>Backup (Excel)</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Last backup: ${lb ? new Date(lb).toLocaleString() : 'never'}. One Excel file with everything: accounts, categories, transactions, debts, budgets. Save it to <b>Files</b> / iCloud Drive.</p>
+  <button class="btn" data-a="exportxlsx">Export backup (.xlsx)</button></div>
+  <div class="card"><h3>Export transactions (CSV)</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Only the transaction list, in a simple CSV that opens in Excel.</p><button class="btn sec" data-a="exportcsv">Export transactions (.csv)</button></div>
+  <div class="card"><h3>Import</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Choose one of: an Excel backup from this app (replaces everything), a CSV or Excel list of transactions (adds to what you have), or a FinancePM backup file (replaces everything).</p>
+  <input type="file" id="impfile" style="margin-bottom:10px"><button class="btn sec" data-a="doimport">Import selected file</button></div></div>`;
 }
 
 // ───────────────────────── forms ─────────────────────────
@@ -849,49 +851,10 @@ function parseCSV(text) {
   }
   row.push(cell); if (row.some(x => x !== '')) rows.push(row); return rows;
 }
-function importCSV(text) {
-  const rows = parseCSV(text); if (rows.length < 2) return toast('CSV looks empty');
-  const head = rows[0].map(h => h.trim().toLowerCase()); const ix = n => head.indexOf(n);
-  const need = ['date', 'type', 'account', 'amount']; if (need.some(n => ix(n) < 0)) return toast('CSV needs columns: Date, Type, Account, Category, Amount');
-  ensureSetup(() => {
-    let n = 0;
-    rows.slice(1).forEach(r => {
-      const g = k => (ix(k) >= 0 ? (r[ix(k)] || '').trim() : '');
-      let type = g('type').toLowerCase().replace('debt-', ''); if (!['expense', 'income', 'transfer'].includes(type)) return;
-      const sum = Math.abs(parseFloat(g('amount').replace(/,/g, ''))); if (!(sum > 0)) return;
-      const d = new Date((g('date') + ' ' + (g('time') || '12:00')).replace(/-/g, '/')); if (isNaN(d)) return;
-      let a = S.accounts.find(x => x.name.toLowerCase() === g('account').toLowerCase()); if (!a) { a = { id: uid(), name: g('account') || 'Imported', icon: '💵', currencyId: S.settings.defCur, opening: 0, active: true }; S.accounts.push(a); }
-      const rec = { id: uid(), type, accountId: a.id, sum, name: g('name'), desc: g('note') || g('description'), date: +d, categoryId: '', toAccountId: '', toSum: null };
-      if (type === 'transfer') { let b = S.accounts.find(x => x.name.toLowerCase() === g('to account').toLowerCase()); if (!b) return; rec.toAccountId = b.id; rec.toSum = parseFloat(g('to amount')) || sum; }
-      else rec.categoryId = findOrMakeCategory(g('category') || 'Other', type).id;
-      S.tx.push(rec); n++;
-    });
-    save(); render(); toast(`Imported ${n} transactions`);
-  });
-}
 function findOrMakeCategory(path, type) {
   const parts = path.split('›').map(s => s.trim()).filter(Boolean); let pid = null, c = null;
   parts.forEach(name => { c = S.categories.find(x => x.type === type && x.name.toLowerCase() === name.toLowerCase() && (x.parentId || null) === pid); if (!c) { c = { id: uid(), name, type, parentId: pid, order: Math.max(0, ...S.categories.map(x => x.order)) + 1 }; S.categories.push(c); } pid = c.id; });
   return c;
-}
-async function doImport() {
-  const f = $('#impfile')?.files[0]; if (!f) return toast('Choose a file first');
-  const text = await f.text();
-  if (/\.csv$/i.test(f.name) || (!text.trim().startsWith('{') && !text.trim().startsWith('['))) {
-    if (/\.(db|sqlite)$/i.test(f.name) || text.startsWith('SQLite format')) return toast('Database files are not supported yet – send it to Claude to add support');
-    return importCSV(text);
-  }
-  let data; try { data = JSON.parse(text); } catch (e) { return toast('Could not read this file'); }
-  if (data.app === 'expense-tracker' && data.state) {
-    confirmBox('Replace ALL current data with this backup?', () => { S = data.state; save(); applyTheme(); render(); toast('Backup restored'); }, 'Replace');
-  } else {
-    const r = importFinancePM(data);
-    if (r) { toast(r); }
-  }
-}
-// FinancePM native backup import (format is detected from the user's own export file)
-function importFinancePM(data) {
-  return 'Unrecognised file format – send it to Claude so the importer can be added';
 }
 function clearData() {
   form('Selective data cleaning', [
@@ -927,7 +890,7 @@ function setPin() {
 const actions = {
   tab: v => tab(v), go: (v, el) => go(v, el.dataset.arg), back: () => back(), close: () => closeSheet(),
   addtx: () => openTx(), addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
-  edittx: v => { const t = S.tx.find(x => x.id === v); if (!t) return; if (t.debtId) { const d = S.debts.find(x => x.id === t.debtId); if (d) { go('debt', d.id); } return; } if (t.groupId) { const rows = S.tx.filter(x => x.groupId === t.groupId).sort((a, b) => (a.gi || 0) - (b.gi || 0)); openTx({ ...rows[0], repeat: 'none', split: true, parts: rows.map(r => ({ accountId: r.prepayId ? 'pp:' + r.prepayId : r.accountId, sum: r.sum })) }); return; } openTx({ ...t, repeat: 'none' }); },
+  edittx: v => { const t = S.tx.find(x => x.id === v); if (!t) return; if (t.debtId && t.debtId !== 'legacy' && t.debtId !== 'adjust') { const d = S.debts.find(x => x.id === t.debtId); if (d) { go('debt', d.id); } return; } if (t.groupId) { const rows = S.tx.filter(x => x.groupId === t.groupId).sort((a, b) => (a.gi || 0) - (b.gi || 0)); openTx({ ...rows[0], repeat: 'none', split: true, parts: rows.map(r => ({ accountId: r.prepayId ? 'pp:' + r.prepayId : r.accountId, sum: r.sum })) }); return; } openTx({ ...t, repeat: 'none' }); },
   editplanned: v => { const p = S.planned.find(x => x.id === v); openTx({ ...p }, 'planned'); },
   planok: v => { const p = S.planned.find(x => x.id === v); if (!p) return; S.tx.push({ id: uid(), type: p.type, accountId: p.accountId, categoryId: p.categoryId, sum: p.sum, name: p.name, desc: p.desc, toAccountId: p.toAccountId, toSum: p.toSum, prepayId: p.prepayId, date: Math.min(p.date, Date.now()) }); advancePlanned(p); save(); render(); toast('Added'); },
   planskip: v => { const p = S.planned.find(x => x.id === v); if (p) { advancePlanned(p); save(); render(); } },
@@ -944,7 +907,7 @@ const actions = {
   rleaf: (v, el) => { U.rep.leaf = el.checked; render(); },
   setchk: (v, el) => { S.settings[el.dataset.k] = el.checked; save(); render(); },
   setpin: () => setPin(), rmpin: () => confirmBox('Remove the passcode?', () => { S.settings.pin = null; save(); render(); }, 'Remove'),
-  exportjson: exportJSON, exportcsv: exportCSV, doimport: doImport, cleardata: clearData,
+  exportxlsx: exportXLSX, exportcsv: exportCSV, doimport: doImport, cleardata: clearData,
 };
 function advancePlanned(p) {
   if (p.repeat && p.repeat !== 'none') { let n = addPeriod(p.date, p.repeat); let g = 0; while (n < Date.now() - DAY && g++ < 400) n = addPeriod(n, p.repeat); p.date = n; }

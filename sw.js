@@ -1,5 +1,5 @@
-const CACHE = 'expense-tracker-v5';
-const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
+const CACHE = 'expense-tracker-v6';
+const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'io.js', 'xlsx.mini.min.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
