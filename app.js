@@ -678,7 +678,7 @@ function openTx(init = {}, mode = 'tx') {
       <div class="seg" style="margin-bottom:${showMore ? 6 : 12}px">${[['expense', 'Expense', 'e'], ['income', 'Income', 'i'], ['transfer', 'Transfer', 't']].map(([k, l, c]) => `<button type="button" class="${t.type === k ? 'on ' + c : ''}" data-ty="${k}">${l}</button>`).join('')}${t.type === 'prepayment' ? '' : `<button type="button" class="more" data-more aria-label="More types" title="Prepayment">${showMore ? '▴' : '▾'}</button>`}</div>
       ${showMore ? `<div class="seg" style="margin-bottom:12px"><button type="button" class="${t.type === 'prepayment' ? 'on p' : ''}" data-ty="prepayment">🅿 Prepayment</button></div>` : ''}
       <form id="txf" autocomplete="off">
-      <label class="f"><span>${t.type === 'prepayment' ? 'Prepayment for (e.g. Annual rent)' : 'Name'}</span><input id="t_name" type="text" value="${esc(t.name)}" list="names" autocapitalize="sentences"><datalist id="names">${[...new Set(S.tx.slice(-200).map(x => x.name).filter(Boolean))].slice(-40).map(n => `<option value="${esc(n)}">`).join('')}</datalist></label>
+      <label class="f" style="margin-bottom:6px"><span>${t.type === 'prepayment' ? 'Prepayment for (e.g. Annual rent)' : 'Name'}</span><input id="t_name" type="text" value="${esc(t.name)}" autocapitalize="sentences" autocomplete="off"></label><div id="namesug" class="namesug" hidden></div><div style="height:12px"></div>
       ${t.split ? splitHtml() : `<label class="f"><span>Amount ${a ? '(' + esc(cur(a.currencyId)?.short) + ')' : ''}</span><input class="amtin" id="t_sum" type="text" inputmode="decimal" placeholder="0" value="${t.sum ?? ''}"></label>
       <label class="f"><span>${isTr ? 'From account' : t.type === 'expense' ? 'Paid from' : t.type === 'prepayment' ? 'Paid from account' : 'Account'}</span><select id="t_acc">${accountChoices(t).map(([v, l]) => `<option value="${v}" ${v === t.accountId ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       ${t.type === 'expense' && mode === 'tx' ? '<button type="button" class="linkbtn" data-split>＋ Split across several accounts</button>' : ''}`}
@@ -704,6 +704,7 @@ function openTx(init = {}, mode = 'tx') {
       const ap = $('[data-addpart]'); if (ap) ap.onclick = () => { sync(); t.parts.push({ accountId: S.accounts.find(x => x.active !== false)?.id, sum: null }); draw(); };
       $$('[data-delpart]').forEach(bt => bt.onclick = () => { sync(); t.parts.splice(+bt.dataset.delpart, 1); if (t.parts.length < 2) { const p0 = t.parts[0]; if (p0) { t.accountId = p0.accountId; t.sum = p0.sum; } t.split = false; t.parts = null; } draw(); });
       $$('[data-pf=sum]').forEach(el => el.oninput = () => { sync(); const tt = $('#splitTotal'); if (tt) tt.textContent = splitTotal(); });
+      wireNameSuggest(t);
       if (!isEdit && !t.sum && !t.name) setTimeout(() => ($('#t_name') || $('#t_sum'))?.focus(), 80);
       if ($('#t_del')) $('#t_del').onclick = () => (mode === 'tx' && init.type === 'prepayment' && prepayUsed(init.id) > 0) ? toast('Delete the expenses paid from this prepayment first') : confirmBox('Delete this ' + (mode === 'planned' ? 'planned operation' : 'transaction') + '?', () => {
         if (mode === 'planned') S.planned = S.planned.filter(x => x.id !== init.id); else S.tx = S.tx.filter(x => !exSet.has(x.id));
@@ -754,6 +755,25 @@ function openTx(init = {}, mode = 'tx') {
   });
 }
 
+function nameStats() {
+  const m = new Map();
+  [...S.tx, ...S.planned, ...S.templates].forEach(x => { const n = (x.name || '').trim(); if (!n) return; const k = n.toLowerCase(); const e = m.get(k) || { name: n, c: 0, last: 0, types: {} }; e.c++; if ((x.date || 0) >= e.last) { e.last = x.date || 0; e.name = n; } e.types[x.type] = 1; m.set(k, e); });
+  return [...m.values()];
+}
+function wireNameSuggest(t) {
+  const inp = $('#t_name'), box = $('#namesug'); if (!inp || !box) return;
+  const stats = nameStats();
+  const show = () => {
+    const q = inp.value.trim().toLowerCase(); if (!q) { box.hidden = true; return; }
+    const list = stats.filter(e => e.name.toLowerCase().includes(q) && e.name.toLowerCase() !== q)
+      .sort((a, b) => (b.name.toLowerCase().startsWith(q) - a.name.toLowerCase().startsWith(q)) || ((b.types[t.type] ? 1 : 0) - (a.types[t.type] ? 1 : 0)) || b.c - a.c || b.last - a.last).slice(0, 6);
+    if (!list.length) { box.hidden = true; return; }
+    box.innerHTML = list.map(e => `<div class="sugrow" data-n="${esc(e.name)}">${esc(e.name)}<span class="mut"> ×${e.c}</span></div>`).join(''); box.hidden = false;
+  };
+  inp.addEventListener('input', show);
+  box.addEventListener('pointerdown', e => { const r = e.target.closest('[data-n]'); if (!r) return; e.preventDefault(); inp.value = r.dataset.n; t.name = inp.value; box.hidden = true; });
+  show();
+}
 function accountChoices(t) {
   const sel = String(t.accountId || '');
   const list = accOptions(sel.startsWith('pp:') ? resolveAcc(sel)?.id : sel);

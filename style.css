@@ -157,3 +157,9 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 .pickbox{background:var(--card);width:100%;max-width:640px;max-height:70dvh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(14px + var(--sab))}
 .pickbox .row.sel{background:var(--brand-l);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:10px}
 .accpick .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.namesug{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:-2px 0 0;overflow:hidden;box-shadow:var(--shadow)}
+.namesug[hidden]{display:none}
+.sugrow{padding:11px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.sugrow:last-child{border-bottom:0}
+.sugrow .mut{font-weight:400;font-size:.8em}
