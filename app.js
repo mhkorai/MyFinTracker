@@ -612,6 +612,7 @@ function pgData() {
   return header('Backup & import', { back: 1 }) + `<div class="wrap">
   <div class="card"><h3>Backup (Excel)</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Last backup: ${lb ? new Date(lb).toLocaleString() : 'never'}. One Excel file with everything: accounts, categories, transactions, debts, budgets. Save it to <b>Files</b> / iCloud Drive.</p>
   <button class="btn" data-a="exportxlsx">Export backup (.xlsx)</button></div>
+  ${ghCard()}
   <div class="card"><h3>Export transactions (CSV)</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Only the transaction list, in a simple CSV that opens in Excel.</p><button class="btn sec" data-a="exportcsv">Export transactions (.csv)</button></div>
   <div class="card"><h3>Import</h3><p class="mut" style="margin:0 0 10px;font-size:.88em">Choose one of: an Excel backup from this app (replaces everything), a CSV or Excel list of transactions (adds to what you have), or a FinancePM backup file (replaces everything).</p>
   <input type="file" id="impfile" style="margin-bottom:10px"><button class="btn sec" data-a="doimport">Import selected file</button></div></div>`;
@@ -626,6 +627,7 @@ function fieldHtml(f) {
   else if (f.type === 'textarea') inner = `<textarea id="${id}" rows="2">${esc(v)}</textarea>`;
   else if (f.type === 'checkbox') return `<label class="chk"><input type="checkbox" id="${id}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
   else if (f.type === 'multi') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><div class="card" style="margin:4px 0 0;padding:6px 12px;max-height:200px;overflow:auto">${f.options.map(([ov, ol, oi]) => `<label class="chk" style="margin:6px 0"><input type="checkbox" name="${id}" value="${esc(ov)}" ${(v || []).includes(ov) ? 'checked' : ''}> ${oi ? `<span class="mi">${iconDot(oi, 30)}</span>` : ''}<span>${esc(ol)}</span></label>`).join('')}</div></div>`;
+  else if (f.type === 'password') inner = `<input id="${id}" type="password" value="${esc(v)}" placeholder="${esc(f.ph || '')}" autocomplete="off" autocapitalize="none">`;
   else if (f.type === 'number') inner = `<input id="${id}" type="text" inputmode="decimal" value="${v === '' ? '' : esc(v)}" placeholder="${esc(f.ph || '')}">`;
   else if (f.type === 'date') inner = `<input id="${id}" type="date" value="${esc(v)}">`;
   else if (f.type === 'datetime') inner = `<input id="${id}" type="datetime-local" value="${esc(v)}">`;
@@ -1034,6 +1036,7 @@ const actions = {
   accmove: (v, el) => { const A = S.accounts, i = A.findIndex(x => x.id === v); if (i < 0) return; const d = +el.dataset.arg; let j = i + d; while (j >= 0 && j < A.length && (A[j].groupId || '') !== (A[i].groupId || '')) j += d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; save(); render(); },
   grptoggle: v => { const o = U.grpOpen || (U.grpOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editgroup: (v, el) => { if (el && el.dataset && el.closest && el.closest('[data-a=grptoggle]')) { /* pencil inside group row */ } editGroup(v); },
+  ghsetup: () => ghForm(), ghnow: () => ghBackup(true),
   accfilter: v => { U.hf.acc = v; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); },
   repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; { const [ra, rb] = rangeOf(U.pr); U.ph = U.pr.kind === 'all' ? { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' } : { kind: 'custom', ref: Date.now(), from: ra, to: rb - 1, sel: 'custom' }; } U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },

@@ -238,7 +238,15 @@ function finalizeFinancePM(o) {
 // ───────────────────────── entry point for the Import button ─────────────────────────
 async function doImport() {
   const f = $('#impfile')?.files[0]; if (!f) return toast('Choose a file first');
-  const buf = await f.arrayBuffer(); const u8 = new Uint8Array(buf);
+  return importBuffer(await f.arrayBuffer());
+}
+async function importBuffer(buf) {
+  let u8 = new Uint8Array(buf);
+  if (typeof ghIsEnc === 'function' && ghIsEnc(u8)) {
+    return form('Encrypted backup', [{ k: 'p', label: 'Passphrase', type: 'password', value: '' }], v => {
+      setTimeout(async () => { try { const out = await ghDecrypt(u8, v.p); importBuffer(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength)); } catch (e) { toast('Wrong passphrase or damaged file'); } }, 150);
+    }, { ok: 'Decrypt' });
+  }
   const isZip = u8[0] === 0x50 && u8[1] === 0x4B;
   if (isZip) {
     if (typeof XLSX === 'undefined') return toast('Excel library not loaded – open the app once with internet');
