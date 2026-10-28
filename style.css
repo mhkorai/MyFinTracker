@@ -172,3 +172,8 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 
 .totline{position:sticky;bottom:calc(72px + var(--sab));z-index:4;display:flex;gap:16px;justify-content:space-between;align-items:center;background:var(--card);box-shadow:0 -2px 10px rgba(0,0,0,.12);border-radius:14px;padding:11px 14px;font-size:.84em;white-space:nowrap;overflow-x:auto;margin-top:8px}
 .totline b{font-variant-numeric:tabular-nums}
+
+.catarrow{flex:none;width:28px;height:28px;border:0;background:none;color:var(--brand);font-size:1.05em;padding:0;display:inline-grid;place-items:center}
+.grp .row.tap{padding-top:6px;padding-bottom:6px}
+.grpamt{min-width:110px;font-size:.92em}
+.accpick .sw{width:14px;height:14px;border-radius:5px}

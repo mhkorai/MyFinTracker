@@ -38,8 +38,8 @@ function buildWorkbook() {
   const accName = id => acc(id)?.name || '';
   add('Info', [['Key', 'Value'], ['App', 'MyFinTracker'], ['Format version', 2], ['Exported at', new Date().toISOString()], ['Default currency', defCur().short || '']], [22, 34]);
   add('Currencies', [['ID', 'Code', 'Name', 'Decimals', 'Rate to default currency'], ...S.currencies.map(c => [c.id, c.short, c.name || '', c.dec, c.id === S.settings.defCur ? 1 : c.rate])], [14, 10, 22, 10, 24]);
-  add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)', 'Balance as of (ms)'],
-  ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0), a.asOf || ''])], [14, 34, 6, 10, 16, 8, 8, 26]);
+  add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)', 'Balance as of (ms)', 'Group'],
+  ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0), a.asOf || '', (S.groups || []).find(g => g.id === a.groupId)?.name || ''])], [14, 34, 6, 10, 16, 8, 8, 26]);
   const cats = [...catSorted('expense'), ...catSorted('income')];
   add('Categories', [['ID', 'Type', 'Name', 'Parent ID', 'Order', 'Full name (info only)'], ...cats.map(c => [c.id, c.type, c.name, c.parentId || '', c.order, catPath(c.id)])], [14, 10, 28, 14, 8, 40]);
   const tx = [...S.tx].filter(t => !t.debtId || t.debtId === 'legacy' || t.debtId === 'adjust').sort((a, b) => a.date - b.date || (a.gi || 0) - (b.gi || 0));
@@ -65,7 +65,7 @@ function exportXLSX() {
 function restoreFromWorkbook(wb) {
   const get = n => { const k = wb.SheetNames.find(x => x.toLowerCase() === n.toLowerCase()); return k ? XLSX.utils.sheet_to_json(wb.Sheets[k], { defval: '', raw: true }) : []; };
   const col = (r, ...names) => { for (const n of names) { if (r[n] !== undefined && r[n] !== '') return r[n]; } return ''; };
-  const N = { v: 1, settings: { ...S.settings, setup: true }, currencies: [], accounts: [], categories: [], tx: [], templates: [], planned: [], budgets: [], debts: [] };
+  const N = { v: 1, settings: { ...S.settings, setup: true }, currencies: [], accounts: [], categories: [], tx: [], templates: [], planned: [], budgets: [], debts: [], groups: [] };
   const warn = [];
   const info = Object.fromEntries(get('Info').map(r => [String(r.Key), r.Value]));
   get('Currencies').forEach(r => { const short = String(col(r, 'Code')).trim(); if (!short) return; N.currencies.push({ id: String(col(r, 'ID') || uid()), short, name: String(col(r, 'Name')), dec: Math.max(0, Math.min(4, numOf(col(r, 'Decimals'), 2))), rate: numOf(col(r, 'Rate to default currency'), 1) || 1 }); });
@@ -74,7 +74,7 @@ function restoreFromWorkbook(wb) {
   get('Accounts').forEach(r => {
     const name = String(col(r, 'Name')).trim(); if (!name) return;
     let c = curByCode(col(r, 'Currency')); if (!c) { c = { id: uid(), short: String(col(r, 'Currency') || 'CUR'), name: '', dec: 2, rate: 1 }; N.currencies.push(c); }
-    N.accounts.push({ id: String(col(r, 'ID') || uid()), name, icon: String(col(r, 'Icon') || '💵'), currencyId: c.id, opening: numOf(col(r, 'Opening balance'), 0), active: col(r, 'Active') === '' ? true : isYes(col(r, 'Active')), isDefault: isYes(col(r, 'Default')), asOf: numOf(col(r, 'Balance as of (ms)'), 0) || 0 });
+    N.accounts.push({ id: String(col(r, 'ID') || uid()), name, icon: String(col(r, 'Icon') || '💵'), currencyId: c.id, opening: numOf(col(r, 'Opening balance'), 0), active: col(r, 'Active') === '' ? true : isYes(col(r, 'Active')), isDefault: isYes(col(r, 'Default')), asOf: numOf(col(r, 'Balance as of (ms)'), 0) || 0, ...(() => { const gn = String(col(r, 'Group')).trim(); if (!gn) return {}; let g = N.groups.find(x => x.name === gn); if (!g) { g = { id: uid(), name: gn }; N.groups.push(g); } return { groupId: g.id }; })() });
   });
   if (!N.settings.defCur) N.settings.defCur = N.currencies[0]?.id || null;
   get('Categories').forEach(r => { const name = String(col(r, 'Name')).trim(); if (!name) return; N.categories.push({ id: String(col(r, 'ID') || uid()), name, type: /inc/i.test(col(r, 'Type')) ? 'income' : 'expense', parentId: col(r, 'Parent ID') ? String(col(r, 'Parent ID')) : null, order: numOf(col(r, 'Order'), 0) }); });
@@ -118,7 +118,7 @@ function restoreFromWorkbook(wb) {
   return { N, skipped, summary: `${N.accounts.length} accounts, ${N.tx.length} transactions, ${N.debts.length} debts, ${N.categories.length} categories` };
 }
 function applyRestoredState(N) {
-  S = N; S.debts.forEach(d => syncDebtTx(d)); S.settings.lastBackup = Date.now();
+  S = N; if (!S.groups) S.groups = []; S.debts.forEach(d => syncDebtTx(d)); S.settings.lastBackup = Date.now();
   if (!S.categories.length) S.categories = defaultState().categories;
   save(); applyTheme(); U.stack = []; U.tab = 'home'; render();
 }

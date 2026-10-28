@@ -25,7 +25,7 @@ const REPEATS = [['none', 'No repeat'], ['daily', 'Daily'], ['weekly', 'Weekly']
 
 function defaultState() {
   const S = { v: 1, settings: { theme: 'auto', defCur: null, pin: null, fs: 16, compact: false, setup: false, lastBackup: 0, catAbove: false },
-    currencies: [], accounts: [], categories: [], tx: [], templates: [], planned: [], budgets: [], debts: [] };
+    currencies: [], accounts: [], categories: [], tx: [], templates: [], planned: [], budgets: [], debts: [], groups: [] };
   let order = 0;
   const add = (list, type) => list.forEach(([n, kids]) => {
     const id = uid(); S.categories.push({ id, name: n, type, parentId: null, order: order++ });
@@ -52,6 +52,7 @@ async function load() {
   if (!st) { try { const j = localStorage.getItem('state'); if (j) st = JSON.parse(j); } catch (e) { } }
   S = st || defaultState();
   if (!S.settings.theme) S.settings.theme = 'auto';
+  if (!S.groups) S.groups = [];
 }
 function save() {
   clearTimeout(saveTimer);
@@ -181,7 +182,31 @@ function tab(t) { U.tab = t; U.stack = []; render(); window.scrollTo(0, 0); }
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
 function sheet(html) { $('#sheet-root').innerHTML = `<div class="back" id="sback"><div class="sheet">${html}</div></div>`; enhanceAccSelects(); }
 // account drop-downs show the real icons: selects that only contain accounts get a custom picker
+function enhanceCatSelects() {
+  const sel = $('#sheet-root select#t_cat'); if (!sel) return;
+  const opts = [...sel.options]; const label = () => catPath(sel.value);
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'accpick';
+  const paint = () => { const c = cat(sel.value); btn.innerHTML = `<i class="sw" style="background:${c ? color(catRoot(c.id).id) : 'var(--line)'}"></i><span class="grow">${esc(c ? label() : 'Choose category')}</span><span class="mut">▾</span>`; };
+  paint(); sel.style.display = 'none'; sel.parentNode.insertBefore(btn, sel);
+  btn.onclick = e => {
+    e.preventDefault(); const open = new Set(); const ids = opts.map(o => o.value); const kids = id => ids.filter(x => cat(x)?.parentId === id);
+    const ov = document.createElement('div'); ov.className = 'pickov';
+    const draw = () => {
+      const roots = ids.filter(x => !cat(x)?.parentId || !ids.includes(cat(x).parentId)); const rows = [];
+      const walk = (id, d) => { const k = kids(id); rows.push(`<div class="row ${id === sel.value ? 'sel' : ''}" style="padding-left:${d * 22}px">${k.length ? `<button type="button" class="catarrow" data-tg="${id}">${open.has(id) ? '▾' : '▸'}</button>` : '<span class="catarrow"></span>'}<div class="row tap grow" data-pk="${id}" style="padding:0;border:0;gap:10px"><i class="sw" style="background:${color(catRoot(id).id)}"></i><div class="grow t">${esc(cat(id).name)}${cat(id).isDefault ? ' <span class="chip">default</span>' : ''}</div></div></div>`); if (k.length && open.has(id)) k.forEach(x => walk(x, d + 1)); };
+      roots.forEach(r => walk(r, 0)); ov.innerHTML = `<div class="pickbox">${rows.join('')}</div>`;
+    };
+    draw();
+    ov.onclick = ev => {
+      const tg = ev.target.closest('[data-tg]'); if (tg) { const id = tg.dataset.tg; open.has(id) ? open.delete(id) : open.add(id); const st = ov.firstChild.scrollTop; draw(); ov.firstChild.scrollTop = st; return; }
+      const r = ev.target.closest('[data-pk]'); if (r) { sel.value = r.dataset.pk; sel.dispatchEvent(new Event('change', { bubbles: true })); paint(); }
+      ov.remove();
+    };
+    document.body.appendChild(ov);
+  };
+}
 function enhanceAccSelects() {
+  enhanceCatSelects();
   $$('#sheet-root select').forEach(sel => {
     const opts = [...sel.options]; if (!opts.length || !opts.every(o => acc(o.value) || o.value.startsWith('pp:'))) return;
     const label = o => { const a = acc(o.value); return a ? `${a.name} (${cur(a.currencyId)?.short || ''})` : o.textContent.trim(); };
@@ -476,16 +501,30 @@ function renderPage(pg) {
 }
 
 function pgAccounts() {
-  const bal = balances(); const so = !!U.sortAcc;
-  const right = `<button class="icon-btn" data-a="sortacc" aria-label="Sort" title="Sort" style="${so ? 'background:var(--brand);color:#fff' : ''}">${so ? '✓' : '⇅'}</button><button class="icon-btn" data-a="editacc">+</button>`;
-  return header('Accounts', { back: 1, right }) + `<div class="wrap">${so ? '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap ✓. This order is used everywhere.</p>' : ''}<div class="card">${S.accounts.length ? S.accounts.map((a, i) =>
-    `<div class="row ${so ? '' : 'tap'}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`}>${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${i === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${i === S.accounts.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : `<div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div>`}</div>`).join('') : emptyMsg('No accounts created yet.')}</div></div>`;
+  const bal = balances(); const so = !!U.sortAcc; const open = U.grpOpen || (U.grpOpen = new Set());
+  const right = `<button class="icon-btn" data-a="sortacc" aria-label="Sort" title="Sort" style="${so ? 'background:var(--brand);color:#fff' : ''}">${so ? '✓' : '⇅'}</button><button class="icon-btn" data-a="editgroup" aria-label="New group" title="New group">📁</button><button class="icon-btn" data-a="editacc">+</button>`;
+  const rowOf = (a, inGroup) => { const sib = S.accounts.filter(x => (x.groupId || '') === (a.groupId || '')); const k = sib.indexOf(a);
+    return `<div class="row ${so ? '' : 'tap'}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`} ${inGroup ? 'style="padding-left:18px"' : ''}>${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${k === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${k === sib.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : `<div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div>`}</div>`; };
+  const groups = (S.groups || []).filter(g => S.accounts.some(x => x.groupId === g.id) || true);
+  let h = header('Accounts', { back: 1, right }) + `<div class="wrap">${so ? '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap ✓. This order is used everywhere.</p>' : ''}`;
+  groups.forEach(g => {
+    const mem = S.accounts.filter(x => x.groupId === g.id); const tot = new Map();
+    mem.filter(x => x.active !== false).forEach(x => addBy(tot, x.currencyId, bal[x.id] || 0));
+    const isOpen = open.has(g.id);
+    h += `<div class="card grp"><div class="row tap" data-a="grptoggle" data-v="${g.id}"><button class="catarrow" tabindex="-1">${isOpen ? '▾' : '▸'}</button><div class="dot" style="background:var(--brand-l)">📁</div><div class="grow"><div class="t">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><div class="amt grpamt">${fmtMulti(tot)}</div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:32px;height:32px;box-shadow:none;background:var(--bg)">✎</button></div>${isOpen ? (mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:8px 18px">No accounts in this group yet.</div>') : ''}</div>`;
+  });
+  const free = S.accounts.filter(x => !x.groupId || !(S.groups || []).some(g => g.id === x.groupId));
+  h += `<div class="card">${free.length ? free.map(x => rowOf(x, false)).join('') : (S.accounts.length ? '<div class="s mut" style="padding:8px 0">All accounts are in groups.</div>' : emptyMsg('No accounts created yet.'))}</div></div>`;
+  return h;
 }
+const defCatId = type => S.categories.find(c => c.type === type && c.isDefault)?.id || '';
 function pgCategories() {
-  const t = U.catType;
+  const t = U.catType; const open = U.catOpen || (U.catOpen = new Set());
+  const kids = id => S.categories.some(c => c.parentId === id);
+  const visible = catSorted(t).filter(c => { let p = c.parentId, ok = true, g = 0; while (p && g++ < 6) { if (!open.has(p)) { ok = false; break; } p = cat(p)?.parentId; } return ok; });
   return header('Categories', { back: 1, right: `<button class="icon-btn" data-a="editcat" data-t="${t}">+</button>` }) + `<div class="wrap"><div class="seg" style="margin-bottom:12px">
   <button class="${t === 'expense' ? 'on e' : ''}" data-a="cattype" data-v="expense">Expenses</button><button class="${t === 'income' ? 'on i' : ''}" data-a="cattype" data-v="income">Income</button></div>
-  <div class="card">${catSorted(t).map(c => `<div class="row tap" data-a="editcat" data-v="${c.id}" style="padding-left:${catDepth(c) * 20}px"><i class="sw" style="background:${color(catRoot(c.id).id)}"></i><div class="grow t">${esc(c.name)}</div><span class="chev">›</span></div>`).join('')}</div></div>`;
+  <div class="card">${visible.map(c => `<div class="row" style="padding-left:${catDepth(c) * 20}px">${kids(c.id) ? `<button class="catarrow" data-a="cattoggle" data-v="${c.id}" aria-label="Show subcategories">${open.has(c.id) ? '▾' : '▸'}</button>` : '<span class="catarrow"></span>'}<div class="row tap grow" data-a="editcat" data-v="${c.id}" style="padding:0;border:0;gap:12px"><i class="sw" style="background:${color(catRoot(c.id).id)}"></i><div class="grow t">${esc(c.name)}${c.isDefault ? ' <span class="chip">default</span>' : ''}</div><span class="chev">›</span></div></div>`).join('')}</div></div>`;
 }
 function budgetRange(b) {
   const now = Date.now();
@@ -643,6 +682,7 @@ function openTx(init = {}, mode = 'tx') {
     const isEdit = !!init.id && mode === 'tx';
     const t = Object.assign({ type: 'expense', accountId: (S.accounts.find(a => a.active !== false && a.isDefault) || S.accounts.find(a => a.active !== false) || S.accounts[0])?.id, date: Date.now(), sum: null, name: '', desc: '', categoryId: '', toAccountId: '', toSum: null, repeat: 'none' }, init);
     if (t.prepayId) t.accountId = 'pp:' + t.prepayId;
+    if (!isEdit && !t.categoryId && mode === 'tx') t.categoryId = defCatId(t.type);
     if (mode === 'planned' && !init.id) t.date = Date.now() + DAY;
     let tplSave = false, moreOpen = false;
     const exSet = new Set(init.groupId ? S.tx.filter(x => x.groupId === init.groupId).map(x => x.id) : (isEdit ? [init.id] : []));
@@ -680,7 +720,7 @@ function openTx(init = {}, mode = 'tx') {
       if (t.type !== 'expense' && String(t.accountId).startsWith('pp:')) t.accountId = resolveAcc(t.accountId)?.id || S.accounts[0]?.id;
       const a = resolveAcc(t.accountId), b = acc(t.toAccountId);
       const cross = isTr && a && b && a.currencyId !== b.currencyId;
-      if (!isTr && !cat(t.categoryId) || (cat(t.categoryId) && cat(t.categoryId).type !== t.type && !isTr)) t.categoryId = catSorted(t.type)[0]?.id || '';
+      if (!isTr && !cat(t.categoryId) || (cat(t.categoryId) && cat(t.categoryId).type !== t.type && !isTr)) t.categoryId = defCatId(t.type) || catSorted(t.type)[0]?.id || '';
       if (isTr && (!t.toAccountId || t.toAccountId === t.accountId)) t.toAccountId = S.accounts.find(x => x.id !== t.accountId)?.id || '';
       const tpls = !isEdit && mode === 'tx' ? S.templates : [];
       sheet(`<button class="x" data-a="close">✕</button><h2>${mode === 'planned' ? (init.id ? 'Edit planned operation' : 'Planned operation') : isEdit ? 'Edit transaction' : 'New transaction'}</h2>
@@ -782,8 +822,10 @@ function wireNameSuggest(t) {
     box.innerHTML = list.map(e => `<div class="sugrow" data-n="${esc(e.name)}">${esc(e.name)}<span class="mut"> ×${e.c}</span></div>`).join(''); box.hidden = false;
   };
   inp.addEventListener('input', show);
+  inp.addEventListener('blur', () => { box.hidden = true; });
+  inp.addEventListener('focus', () => { if (inp.value.trim()) show(); });
   box.addEventListener('pointerdown', e => { const r = e.target.closest('[data-n]'); if (!r) return; e.preventDefault(); inp.value = r.dataset.n; t.name = inp.value; box.hidden = true; });
-  show();
+  if (document.activeElement === inp) show();
 }
 function accountChoices(t) {
   const sel = String(t.accountId || '');
@@ -799,6 +841,7 @@ function editAccount(id) {
   form(a ? 'Edit account' : 'New account', [
     { k: 'name', label: 'Name', value: a?.name || '' },
     { k: 'icon', label: 'Icon', type: 'icon', value: a?.icon || 'svg:wallet-blue' },
+    ...((S.groups || []).length ? [{ k: 'group', label: 'Group', type: 'select', value: a?.groupId || '', options: [['', '— none —'], ...S.groups.map(g => [g.id, g.name])] }] : []),
     { k: 'cur', label: 'Currency', type: 'select', value: a?.currencyId || S.settings.defCur, options: S.currencies.map(c => [c.id, c.short + ' – ' + (c.name || '')]) },
     { k: 'open', label: a ? 'Opening balance (your balance as imported / before new entries)' : 'Current balance', type: 'number', value: a?.opening ?? 0 },
     { k: 'active', label: 'Active', type: 'checkbox', value: a ? a.active !== false : true },
@@ -806,17 +849,34 @@ function editAccount(id) {
       if (!v.name) return 'Enter a name';
       if (v.def) S.accounts.forEach(x => x.isDefault = false);
       const rec = { name: v.name, icon: v.icon, currencyId: v.cur, opening: v.open || 0, active: v.active, isDefault: v.def };
+      if (v.group) rec.groupId = v.group; else if (a) delete a.groupId;
       if (a) Object.assign(a, rec); else S.accounts.push({ id: uid(), ...rec });
     }, a ? { extraHtml: `<div class="card" style="margin:14px 0 0"><button type="button" class="acctx" data-acctx>Transactions (${accTx(a.id).length}) <span>▾</span></button><div id="acctxlist" hidden></div></div>`, after: () => { const bt = $('[data-acctx]'); if (bt) bt.onclick = () => { const l = $('#acctxlist'); if (l.hidden && !l.dataset.done) { const list = accTx(a.id); l.innerHTML = list.length ? list.map(t => txRowHtml(t, { time: true })).join('') : emptyMsg('No transactions for this account.'); l.dataset.done = 1; } l.hidden = !l.hidden; bt.querySelector('span').textContent = l.hidden ? '▾' : '▴'; }; }, onDelete: () => { const used = S.tx.some(t => t.accountId === a.id || t.toAccountId === a.id); if (used) { a.active = false; toast('Account has transactions – marked inactive'); } else S.accounts = S.accounts.filter(x => x.id !== a.id); }, delMsg: 'Delete this account? (If it has transactions it will be hidden instead.)' } : {});
+}
+function editGroup(id) {
+  const g = id ? (S.groups || []).find(x => x.id === id) : null;
+  if (!S.accounts.length) return toast('Create an account first');
+  form(g ? 'Edit group' : 'New group', [
+    { k: 'name', label: 'Group name', value: g?.name || '' },
+    { k: 'members', label: 'Accounts in this group', type: 'multi', value: g ? S.accounts.filter(x => x.groupId === g.id).map(x => x.id) : [], options: S.accounts.map(x => [x.id, `${iconText(x.icon)} ${x.name} (${cur(x.currencyId)?.short || ''})`]) }], v => {
+      if (!v.name) return 'Enter a group name';
+      if (!S.groups) S.groups = [];
+      let grp = g; if (!grp) { grp = { id: uid(), name: v.name }; S.groups.push(grp); } else grp.name = v.name;
+      S.accounts.forEach(x => { if (v.members.includes(x.id)) x.groupId = grp.id; else if (x.groupId === grp.id) delete x.groupId; });
+      (U.grpOpen || (U.grpOpen = new Set())).delete(grp.id);
+    }, g ? { onDelete: () => { S.accounts.forEach(x => { if (x.groupId === g.id) delete x.groupId; }); S.groups = S.groups.filter(x => x.id !== g.id); }, delMsg: 'Delete this group? The accounts stay, they just leave the group.' } : {});
 }
 function editCategory(id, type) {
   const c = id && cat(id) ? cat(id) : null; const tp = c?.type || type || U.catType;
   const parents = catSorted(tp).filter(x => !c || (!catDescendants(c.id).includes(x.id) && catDepth(x) < 2));
   form(c ? 'Edit category' : 'New category', [
     { k: 'name', label: 'Name', value: c?.name || '' },
-    { k: 'parent', label: 'Parent category', type: 'select', value: c?.parentId || '', options: [['', '— none —'], ...parents.map(p => [p.id, catPath(p.id)])] }], v => {
+    { k: 'parent', label: 'Parent category', type: 'select', value: c?.parentId || '', options: [['', '— none —'], ...parents.map(p => [p.id, catPath(p.id)])] },
+    { k: 'def', label: `Use as the default ${tp} category`, type: 'checkbox', value: !!c?.isDefault }], v => {
       if (!v.name) return 'Enter a name';
-      if (c) { c.name = v.name; c.parentId = v.parent || null; } else S.categories.push({ id: uid(), name: v.name, type: tp, parentId: v.parent || null, order: Math.max(0, ...S.categories.map(x => x.order)) + 1 });
+      const nid = c ? c.id : uid();
+      if (v.def) S.categories.forEach(x => { if (x.type === tp) delete x.isDefault; });
+      if (c) { c.name = v.name; c.parentId = v.parent || null; if (v.def) c.isDefault = true; else delete c.isDefault; } else S.categories.push({ id: nid, isDefault: v.def || undefined, name: v.name, type: tp, parentId: v.parent || null, order: Math.max(0, ...S.categories.map(x => x.order)) + 1 });
     }, c ? {
       onDelete: () => {
         const ids = new Set(catDescendants(c.id)); let other = S.categories.find(x => x.type === c.type && x.name === 'Other' && !ids.has(x.id));
@@ -964,12 +1024,15 @@ const actions = {
   planskip: v => { const p = S.planned.find(x => x.id === v); if (p) { advancePlanned(p); save(); render(); } },
   usetpl: v => { const x = S.templates.find(z => z.id === v); openTx({ type: x.type, accountId: x.accountId, categoryId: x.categoryId, sum: x.sum, name: x.name, desc: x.desc, toAccountId: x.toAccountId, toSum: x.toSum, date: Date.now() }); },
   deltpl: v => { S.templates = S.templates.filter(x => x.id !== v); save(); render(); },
+  cattoggle: v => { const o = U.catOpen || (U.catOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editacc: v => editAccount(v), editcat: (v, el) => editCategory(v, el.dataset.t), cattype: v => { U.catType = v; render(); },
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
   addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => editRepay(v, el.dataset.arg),
   menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
-  accmove: (v, el) => { const i = S.accounts.findIndex(x => x.id === v), j = i + +el.dataset.arg; if (i < 0 || j < 0 || j >= S.accounts.length) return; [S.accounts[i], S.accounts[j]] = [S.accounts[j], S.accounts[i]]; save(); render(); },
+  accmove: (v, el) => { const A = S.accounts, i = A.findIndex(x => x.id === v); if (i < 0) return; const d = +el.dataset.arg; let j = i + d; while (j >= 0 && j < A.length && (A[j].groupId || '') !== (A[i].groupId || '')) j += d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; save(); render(); },
+  grptoggle: v => { const o = U.grpOpen || (U.grpOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
+  editgroup: (v, el) => { if (el && el.dataset && el.closest && el.closest('[data-a=grptoggle]')) { /* pencil inside group row */ } editGroup(v); },
   accfilter: v => { U.hf.acc = v; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); },
   repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; { const [ra, rb] = rangeOf(U.pr); U.ph = U.pr.kind === 'all' ? { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' } : { kind: 'custom', ref: Date.now(), from: ra, to: rb - 1, sel: 'custom' }; } U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },
