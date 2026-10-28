@@ -360,7 +360,7 @@ function viewHome() {
   ['debts', '🤝', 'Debts', '#d97706'], ['hist', '📒', 'Financial movements', '#7b1fa2'], ['rep', '📊', 'Reports', '#0891b2'], ['categories', '🗂️', 'Categories', '#db2777'],
   ['budgets', '🎯', 'Budgets', '#65a30d'], ['prepayments', '🅿', 'Prepayments', '#9333ea'], ['planned', '🔁', 'Planned operations', '#ea580c'], ['currencies', '💱', 'Currencies', '#0d9488'],
   ['data', '💾', 'Backup & import', '#475569'], ['settings', '⚙︎', 'Settings', '#64748b']];
-  h += `<div class="tiles">${tiles.map(([k, i, l, c]) => `<button class="tile" data-a="menu" data-v="${k}"><span class="ti" style="background:${c}">${i}</span><span class="tl">${l}</span></button>`).join('')}</div>`;
+  h += `<div class="tiles">${tiles.map(([k, i, l, c]) => `<button class="tile" data-a="menu" data-v="${k}"><span class="ti" style="background:${c}">${tileIcon(k, i)}</span><span class="tl">${l}</span></button>`).join('')}</div>`;
   return h + '</div>';
 }
 

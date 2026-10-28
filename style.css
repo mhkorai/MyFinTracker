@@ -182,3 +182,5 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 .grp .grptot:last-child{border-bottom:0}
 label.chk .mi .dot{width:30px;height:30px;font-size:.9em}
 label.chk .mi{flex:none}
+
+.tile .ti svg{display:block}

@@ -32,3 +32,22 @@ function iconPicker(selected) {
   return ICON_NAMES.map(row => `<div class="iprow">${row.map(n => cell('svg:' + n, iconSvg(n))).join('')}</div>`).join('') +
     `<div class="iprow">${['📁', '🗂️', '👪', '🏢', '🧳', '💵', '💳', '🏦', '👛', '💰', '🏠', '🚗', '🛒', '🎁', '📈', '💼', '📱', '🎟️', '🪙'].map(e => cell(e, `<span style="font-size:26px">${e}</span>`)).join('')}</div>`;
 }
+
+// Original white line glyphs for the Home menu tiles (24x24 grid)
+const TILE_P = {
+  accounts: '<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6H18v2.5"/><rect x="3.5" y="8.5" width="17" height="11" rx="2.5"/><circle cx="16.5" cy="14" r="1.2" fill="#fff"/>',
+  income: '<path d="M12 4v10M8 10.5l4 4 4-4"/><path d="M5 15.5V18a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18v-2.5"/>',
+  expense: '<path d="M12 14.5v-10M8 8l4-4 4 4"/><path d="M5 15.5V18a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 18v-2.5"/>',
+  transfer: '<path d="M4 8.5h13M13.5 5l3.5 3.5-3.5 3.5"/><path d="M20 15.5H7M10.5 12 7 15.5l3.5 3.5"/>',
+  debts: '<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9.5" r="2.3"/><path d="M16.3 14.2c2.5.2 4.2 1.9 4.2 4.3"/>',
+  hist: '<path d="M9.5 7h10.5M9.5 12h10.5M9.5 17h10.5"/><circle cx="5" cy="7" r="1.1" fill="#fff"/><circle cx="5" cy="12" r="1.1" fill="#fff"/><circle cx="5" cy="17" r="1.1" fill="#fff"/>',
+  rep: '<circle cx="12" cy="12" r="8"/><path d="M12 4v8h8"/>',
+  categories: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
+  budgets: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="#fff"/>',
+  prepayments: '<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>',
+  planned: '<rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+  currencies: '<circle cx="12" cy="12" r="8"/><path d="M14.5 9.4c-.6-.8-1.5-1.2-2.6-1.2-1.4 0-2.4.8-2.4 1.8 0 2.6 5 1.2 5 3.9 0 1-1 1.8-2.5 1.8-1.1 0-2-.5-2.7-1.3M12 6.6v1.6M12 15.8v1.6"/>',
+  data: '<path d="M7.5 18.5h9a4 4 0 0 0 .6-7.95 5.5 5.5 0 0 0-10.6 1.2A3.4 3.4 0 0 0 7.5 18.5z"/><path d="M12 16v-4.5M10 13.2l2-2 2 2"/>',
+  settings: '<path d="M4.5 7H12M18 7h1.5M4.5 12H6M12 12h7.5M4.5 17h9M19 17h.5"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="16.5" cy="17" r="2.2"/>'
+};
+function tileIcon(k, fallback) { const p = TILE_P[k]; return p ? `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>` : fallback; }
