@@ -70,7 +70,7 @@ const defCur = () => cur(S.settings.defCur) || S.currencies[0] || { id: '', shor
 const rateOf = id => (cur(id) || defCur()).rate || 1;
 const toBase = (n, curId) => n * rateOf(curId);
 function fmtNum(n, curId) { // accounting style: negatives in brackets, no minus sign
-  if (U.hide) return '••••';
+  if (U.hide) return '*****';
   const c = cur(curId) || defCur();
   const f = Math.pow(10, c.dec); const rounded = Math.round(Math.abs(n) * f) / f;
   const t = rounded.toLocaleString('en-US', { minimumFractionDigits: c.dec, maximumFractionDigits: c.dec });
