@@ -338,7 +338,7 @@ function viewHome() {
   if (S.tx.length && now - (S.settings.lastBackup || 0) > 14 * DAY) {
     h += `<div class="banner">⚠️<b>${S.settings.lastBackup ? 'Last backup was over 2 weeks ago.' : 'No backup yet.'} Your data lives only on this phone.</b><button class="btn sm" data-a="go" data-v="data" style="width:auto">Back up</button></div>`;
   }
-  h += `<div class="card tap" data-a="go" data-v="accounts" style="cursor:pointer"><h3 style="display:flex;justify-content:space-between">Total balance <span class="chev" style="text-transform:none;letter-spacing:0">Accounts ›</span></h3><div class="big" style="font-size:1.05em;font-weight:700">${fmtMulti(total)}</div></div>`;
+  h += `<div class="card tap" data-a="go" data-v="accounts" style="cursor:pointer"><h3 style="display:flex;justify-content:space-between">Total balance <span class="chev" style="text-transform:none;letter-spacing:0">Accounts ›</span></h3><div class="hometot">${fmtMulti(total)}</div></div>`;
   // daily budget
   const db = S.budgets.find(b => b.period === 'daily');
   if (db) { const st = budgetStatus(db); h += `<div class="card"><h3>${st.left >= 0 ? 'Available today' : 'Overspent today'}</h3><div class="big ${st.left >= 0 ? 'inc' : 'exp'}">${fmtB(Math.abs(st.left))}</div></div>`; }

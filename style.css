@@ -184,3 +184,8 @@ label.chk .mi .dot{width:30px;height:30px;font-size:.9em}
 label.chk .mi{flex:none}
 
 .tile .ti svg{display:block}
+
+.hometot{font-size:1em}
+.hometot .mrow{padding:5px 0;align-items:center}
+.hometot .mc{font-size:.95em!important;font-weight:700;color:var(--muted)}
+.hometot .ma{font-size:1.2em;font-weight:800;letter-spacing:-.01em}
