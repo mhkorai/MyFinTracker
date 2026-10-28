@@ -175,8 +175,8 @@ function shiftPeriod(p, dir) {
 const U = { tab: 'home', stack: [], ph: { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }, pr: { kind: 'month', ref: Date.now(), from: null, to: null },
   hf: { type: 'all', acc: '', cat: '', q: '' }, rep: { type: 'pie-exp', acc: '', leaf: false }, hideZero: true, catType: 'expense' };
 const page = () => U.stack[U.stack.length - 1] || null;
-function go(name, arg) { U.sortAcc = false; U.stack.push({ name, arg }); render(); window.scrollTo(0, 0); }
-function back() { U.sortAcc = false; U.stack.pop(); render(); }
+function go(name, arg) { U.sortAcc = false; U.sortCat = false; U.stack.push({ name, arg }); render(); window.scrollTo(0, 0); }
+function back() { U.sortAcc = false; U.sortCat = false; U.stack.pop(); render(); }
 function tab(t) { U.tab = t; U.stack = []; render(); window.scrollTo(0, 0); }
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
@@ -537,9 +537,10 @@ function pgCategories() {
   const t = U.catType; const open = U.catOpen || (U.catOpen = new Set());
   const kids = id => S.categories.some(c => c.parentId === id);
   const visible = catSorted(t).filter(c => { let p = c.parentId, ok = true, g = 0; while (p && g++ < 6) { if (!open.has(p)) { ok = false; break; } p = cat(p)?.parentId; } return ok; });
-  return header('Categories', { back: 1, right: `<button class="icon-btn" data-a="editcat" data-t="${t}">+</button>` }) + `<div class="wrap"><div class="seg" style="margin-bottom:12px">
+  const so = !!U.sortCat; const sibs = c => S.categories.filter(x => x.type === c.type && (x.parentId || null) === (c.parentId || null)).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  return header('Categories', { back: 1, right: `<button class="icon-btn" data-a="sortcat" aria-label="Sort" title="Sort" style="${so ? 'background:var(--brand);color:#fff' : ''}">${so ? '✓' : '⇅'}</button><button class="icon-btn" data-a="editcat" data-t="${t}">+</button>` }) + `<div class="wrap">${so ? '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move a category up or down among its siblings, then tap ✓. This order is used everywhere categories are chosen.</p>' : ''}<div class="seg" style="margin-bottom:12px">
   <button class="${t === 'expense' ? 'on e' : ''}" data-a="cattype" data-v="expense">Expenses</button><button class="${t === 'income' ? 'on i' : ''}" data-a="cattype" data-v="income">Income</button></div>
-  <div class="card">${visible.map(c => `<div class="row" style="padding-left:${catDepth(c) * 20}px">${kids(c.id) ? `<button class="catarrow" data-a="cattoggle" data-v="${c.id}" aria-label="Show subcategories">${open.has(c.id) ? '▾' : '▸'}</button>` : '<span class="catarrow"></span>'}<div class="row tap grow" data-a="editcat" data-v="${c.id}" style="padding:0;border:0;gap:12px"><i class="sw" style="background:${color(catRoot(c.id).id)}"></i><div class="grow t">${esc(c.name)}${c.isDefault ? ' <span class="chip">default</span>' : ''}</div><span class="chev">›</span></div></div>`).join('')}</div></div>`;
+  <div class="card">${visible.map(c => `<div class="row" style="padding-left:${catDepth(c) * 20}px">${kids(c.id) ? `<button class="catarrow" data-a="cattoggle" data-v="${c.id}" aria-label="Show subcategories">${open.has(c.id) ? '▾' : '▸'}</button>` : '<span class="catarrow"></span>'}<div class="row ${so ? '' : 'tap '}grow" ${so ? '' : `data-a="editcat" data-v="${c.id}"`} style="padding:0;border:0;gap:12px"><i class="sw" style="background:${color(catRoot(c.id).id)}"></i><div class="grow t">${esc(c.name)}${c.isDefault ? ' <span class="chip">default</span>' : ''}</div>${so ? (() => { const sb = sibs(c), k = sb.indexOf(c); return `<button class="icon-btn" data-a="catmove" data-v="${c.id}" data-arg="-1" ${k === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="catmove" data-v="${c.id}" data-arg="1" ${k === sb.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>`; })() : '<span class="chev">›</span>'}</div></div>`).join('')}</div></div>`;
 }
 function budgetRange(b) {
   const now = Date.now();
@@ -1052,6 +1053,8 @@ const actions = {
   grptoggle: v => { const o = U.grpOpen || (U.grpOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editgroup: (v, el) => { if (el && el.dataset && el.closest && el.closest('[data-a=grptoggle]')) { /* pencil inside group row */ } editGroup(v); },
   ghsetup: () => ghForm(), ghnow: () => ghBackup(true),
+  sortcat: () => { U.sortCat = !U.sortCat; render(); },
+  catmove: (v, el) => { const c = cat(v); if (!c) return; const sb = S.categories.filter(x => x.type === c.type && (x.parentId || null) === (c.parentId || null)).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)); const i = sb.indexOf(c), j = i + +el.dataset.arg; if (j < 0 || j >= sb.length) return; [sb[i], sb[j]] = [sb[j], sb[i]]; sb.forEach((x, k) => x.order = k * 10); save(); render(); },
   accfilter: v => { U.hf.acc = v; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); },
   repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; { const [ra, rb] = rangeOf(U.pr); U.ph = U.pr.kind === 'all' ? { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' } : { kind: 'custom', ref: Date.now(), from: ra, to: rb - 1, sel: 'custom' }; } U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },
