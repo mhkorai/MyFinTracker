@@ -41,6 +41,7 @@ function buildWorkbook() {
   add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)', 'Balance as of (ms)', 'Group'],
   ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0), a.asOf || '', (S.groups || []).find(g => g.id === a.groupId)?.name || ''])], [14, 34, 6, 10, 16, 8, 8, 26]);
   const cats = [...catSorted('expense'), ...catSorted('income')];
+  add('Groups', [['Name', 'Icon'], ...(S.groups || []).map(g => [g.name, g.icon || ''])], [28, 10]);
   add('Categories', [['ID', 'Type', 'Name', 'Parent ID', 'Order', 'Full name (info only)'], ...cats.map(c => [c.id, c.type, c.name, c.parentId || '', c.order, catPath(c.id)])], [14, 10, 28, 14, 8, 40]);
   const tx = [...S.tx].filter(t => !t.debtId || t.debtId === 'legacy' || t.debtId === 'adjust').sort((a, b) => a.date - b.date || (a.gi || 0) - (b.gi || 0));
   add('Transactions', [['Date', 'Time', 'Type', 'Account', 'Category', 'Amount', 'Currency', 'To account', 'To amount', 'Name', 'Note', 'ID', 'Account ID', 'To account ID', 'Category ID', 'Group ID', 'Part no.', 'Prepayment ID', 'Kind'],
@@ -71,6 +72,7 @@ function restoreFromWorkbook(wb) {
   get('Currencies').forEach(r => { const short = String(col(r, 'Code')).trim(); if (!short) return; N.currencies.push({ id: String(col(r, 'ID') || uid()), short, name: String(col(r, 'Name')), dec: Math.max(0, Math.min(4, numOf(col(r, 'Decimals'), 2))), rate: numOf(col(r, 'Rate to default currency'), 1) || 1 }); });
   const defCode = String(info['Default currency'] || ''); N.settings.defCur = (N.currencies.find(c => c.short === defCode) || N.currencies.find(c => c.rate === 1) || N.currencies[0])?.id || null;
   const curByCode = code => N.currencies.find(c => c.short === String(code).trim());
+  get('Groups').forEach(r => { const gn = String(col(r, 'Name')).trim(); if (gn && !N.groups.find(x => x.name === gn)) N.groups.push({ id: uid(), name: gn, icon: String(col(r, 'Icon') || '📁') }); });
   get('Accounts').forEach(r => {
     const name = String(col(r, 'Name')).trim(); if (!name) return;
     let c = curByCode(col(r, 'Currency')); if (!c) { c = { id: uid(), short: String(col(r, 'Currency') || 'CUR'), name: '', dec: 2, rate: 1 }; N.currencies.push(c); }

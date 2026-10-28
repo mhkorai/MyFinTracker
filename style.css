@@ -177,3 +177,8 @@ input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;heig
 .grp .row.tap{padding-top:6px;padding-bottom:6px}
 .grpamt{min-width:110px;font-size:.92em}
 .accpick .sw{width:14px;height:14px;border-radius:5px}
+
+.grptot{padding:0 14px 8px 58px;font-size:.95em;border-bottom:1px solid var(--line)}
+.grp .grptot:last-child{border-bottom:0}
+label.chk .mi .dot{width:30px;height:30px;font-size:.9em}
+label.chk .mi{flex:none}

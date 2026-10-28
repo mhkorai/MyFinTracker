@@ -30,5 +30,5 @@ function iconDot(icon, size) {
 function iconPicker(selected) {
   const cell = (val, inner) => `<button type="button" class="ipick ${val === selected ? 'on' : ''}" data-pick="${val}">${inner}</button>`;
   return ICON_NAMES.map(row => `<div class="iprow">${row.map(n => cell('svg:' + n, iconSvg(n))).join('')}</div>`).join('') +
-    `<div class="iprow">${['💵', '💳', '🏦', '👛', '💰', '🏠', '🚗', '🛒', '🎁', '📈', '💼', '📱', '🎟️', '🪙'].map(e => cell(e, `<span style="font-size:26px">${e}</span>`)).join('')}</div>`;
+    `<div class="iprow">${['📁', '🗂️', '👪', '🏢', '🧳', '💵', '💳', '🏦', '👛', '💰', '🏠', '🚗', '🛒', '🎁', '📈', '💼', '📱', '🎟️', '🪙'].map(e => cell(e, `<span style="font-size:26px">${e}</span>`)).join('')}</div>`;
 }

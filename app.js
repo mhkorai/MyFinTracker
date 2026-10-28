@@ -511,7 +511,7 @@ function pgAccounts() {
     const mem = S.accounts.filter(x => x.groupId === g.id); const tot = new Map();
     mem.filter(x => x.active !== false).forEach(x => addBy(tot, x.currencyId, bal[x.id] || 0));
     const isOpen = open.has(g.id);
-    h += `<div class="card grp"><div class="row tap" data-a="grptoggle" data-v="${g.id}"><button class="catarrow" tabindex="-1">${isOpen ? '▾' : '▸'}</button><div class="dot" style="background:var(--brand-l)">📁</div><div class="grow"><div class="t">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><div class="amt grpamt">${fmtMulti(tot)}</div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:32px;height:32px;box-shadow:none;background:var(--bg)">✎</button></div>${isOpen ? (mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:8px 18px">No accounts in this group yet.</div>') : ''}</div>`;
+    h += `<div class="card grp"><div class="row tap" data-a="grptoggle" data-v="${g.id}"><button class="catarrow" tabindex="-1">${isOpen ? '▾' : '▸'}</button>${iconDot(g.icon || '📁')}<div class="grow"><div class="t" style="white-space:normal">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:32px;height:32px;box-shadow:none;background:var(--bg)">✎</button></div><div class="grptot">${fmtMulti(tot)}</div>${isOpen ? (mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:8px 18px">No accounts in this group yet.</div>') : ''}</div>`;
   });
   const free = S.accounts.filter(x => !x.groupId || !(S.groups || []).some(g => g.id === x.groupId));
   h += `<div class="card">${free.length ? free.map(x => rowOf(x, false)).join('') : (S.accounts.length ? '<div class="s mut" style="padding:8px 0">All accounts are in groups.</div>' : emptyMsg('No accounts created yet.'))}</div></div>`;
@@ -625,7 +625,7 @@ function fieldHtml(f) {
   else if (f.type === 'icon') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><input type="hidden" id="${id}" value="${esc(v)}"><button type="button" class="iconbtn" data-iconopen><span class="cur">${iconDot(v, 40)}</span><span class="mut">Tap to change ▾</span></button><div class="ipicker" hidden>${iconPicker(v)}</div></div>`;
   else if (f.type === 'textarea') inner = `<textarea id="${id}" rows="2">${esc(v)}</textarea>`;
   else if (f.type === 'checkbox') return `<label class="chk"><input type="checkbox" id="${id}" ${v ? 'checked' : ''}> ${esc(f.label)}</label>`;
-  else if (f.type === 'multi') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><div class="card" style="margin:4px 0 0;padding:6px 12px;max-height:200px;overflow:auto">${f.options.map(([ov, ol]) => `<label class="chk" style="margin:6px 0"><input type="checkbox" name="${id}" value="${esc(ov)}" ${(v || []).includes(ov) ? 'checked' : ''}> ${esc(ol)}</label>`).join('')}</div></div>`;
+  else if (f.type === 'multi') return `<div class="f"><span class="mut" style="font-size:.78em;font-weight:600">${esc(f.label)}</span><div class="card" style="margin:4px 0 0;padding:6px 12px;max-height:200px;overflow:auto">${f.options.map(([ov, ol, oi]) => `<label class="chk" style="margin:6px 0"><input type="checkbox" name="${id}" value="${esc(ov)}" ${(v || []).includes(ov) ? 'checked' : ''}> ${oi ? `<span class="mi">${iconDot(oi, 30)}</span>` : ''}<span>${esc(ol)}</span></label>`).join('')}</div></div>`;
   else if (f.type === 'number') inner = `<input id="${id}" type="text" inputmode="decimal" value="${v === '' ? '' : esc(v)}" placeholder="${esc(f.ph || '')}">`;
   else if (f.type === 'date') inner = `<input id="${id}" type="date" value="${esc(v)}">`;
   else if (f.type === 'datetime') inner = `<input id="${id}" type="datetime-local" value="${esc(v)}">`;
@@ -858,10 +858,11 @@ function editGroup(id) {
   if (!S.accounts.length) return toast('Create an account first');
   form(g ? 'Edit group' : 'New group', [
     { k: 'name', label: 'Group name', value: g?.name || '' },
-    { k: 'members', label: 'Accounts in this group', type: 'multi', value: g ? S.accounts.filter(x => x.groupId === g.id).map(x => x.id) : [], options: S.accounts.map(x => [x.id, `${iconText(x.icon)} ${x.name} (${cur(x.currencyId)?.short || ''})`]) }], v => {
+    { k: 'icon', label: 'Group icon', type: 'icon', value: g?.icon || '📁' },
+    { k: 'members', label: 'Accounts in this group (accounts already in another group are hidden)', type: 'multi', value: g ? S.accounts.filter(x => x.groupId === g.id).map(x => x.id) : [], options: S.accounts.filter(x => !x.groupId || (g && x.groupId === g.id) || !(S.groups || []).some(q => q.id === x.groupId)).map(x => [x.id, `${x.name} (${cur(x.currencyId)?.short || ''})`, x.icon || '💵']) }], v => {
       if (!v.name) return 'Enter a group name';
       if (!S.groups) S.groups = [];
-      let grp = g; if (!grp) { grp = { id: uid(), name: v.name }; S.groups.push(grp); } else grp.name = v.name;
+      let grp = g; if (!grp) { grp = { id: uid(), name: v.name, icon: v.icon }; S.groups.push(grp); } else { grp.name = v.name; grp.icon = v.icon; }
       S.accounts.forEach(x => { if (v.members.includes(x.id)) x.groupId = grp.id; else if (x.groupId === grp.id) delete x.groupId; });
       (U.grpOpen || (U.grpOpen = new Set())).delete(grp.id);
     }, g ? { onDelete: () => { S.accounts.forEach(x => { if (x.groupId === g.id) delete x.groupId; }); S.groups = S.groups.filter(x => x.id !== g.id); }, delMsg: 'Delete this group? The accounts stay, they just leave the group.' } : {});
