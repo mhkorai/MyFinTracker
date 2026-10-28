@@ -215,9 +215,24 @@ function enhanceAccSelects() {
     const paint = () => { const o = sel.options[sel.selectedIndex]; btn.innerHTML = `${o ? ic(o) : ''}<span class="grow">${o ? esc(label(o)) : ''}</span><span class="mut">▾</span>`; };
     paint(); sel.style.display = 'none'; sel.parentNode.insertBefore(btn, sel);
     btn.onclick = e => {
-      e.preventDefault(); const ov = document.createElement('div'); ov.className = 'pickov';
-      ov.innerHTML = `<div class="pickbox">${opts.map((o, i) => `<div class="row tap ${i === sel.selectedIndex ? 'sel' : ''}" data-i="${i}">${ic(o)}<div class="grow t">${esc(label(o))}</div></div>`).join('')}</div>`;
-      ov.onclick = ev => { const r = ev.target.closest('[data-i]'); if (r) { sel.selectedIndex = +r.dataset.i; sel.dispatchEvent(new Event('change', { bubbles: true })); paint(); } ov.remove(); };
+      e.preventDefault(); const ov = document.createElement('div'); ov.className = 'pickov'; const open = new Set();
+      const rowHtml = (o, i, ind) => `<div class="row tap ${i === sel.selectedIndex ? 'sel' : ''}" data-i="${i}" ${ind ? 'style="padding-left:26px"' : ''}>${ic(o)}<div class="grow t">${esc(label(o))}</div></div>`;
+      const draw = () => {
+        const used = new Set(); let html = '';
+        (S.groups || []).forEach(g => {
+          const mem = opts.map((o, i) => [o, i]).filter(([o]) => acc(o.value)?.groupId === g.id); if (!mem.length) return;
+          mem.forEach(([, i]) => used.add(i));
+          html += `<div class="row tap" data-g="${g.id}"><span class="catarrow">${open.has(g.id) ? '▾' : '▸'}</span>${iconDot(g.icon || '📁', 32)}<div class="grow t">${esc(g.name)}</div><span class="mut" style="font-size:.8em">${mem.length}</span></div>`;
+          if (open.has(g.id)) html += mem.map(([o, i]) => rowHtml(o, i, true)).join('');
+        });
+        html += opts.map((o, i) => used.has(i) ? '' : rowHtml(o, i, false)).join('');
+        const st = ov.firstChild ? ov.firstChild.scrollTop : 0; ov.innerHTML = `<div class="pickbox">${html}</div>`; ov.firstChild.scrollTop = st;
+      };
+      draw();
+      ov.onclick = ev => {
+        const g = ev.target.closest('[data-g]'); if (g) { const id = g.dataset.g; open.has(id) ? open.delete(id) : open.add(id); draw(); return; }
+        const r = ev.target.closest('[data-i]'); if (r) { sel.selectedIndex = +r.dataset.i; sel.dispatchEvent(new Event('change', { bubbles: true })); paint(); } ov.remove();
+      };
       document.body.appendChild(ov);
     };
   });
