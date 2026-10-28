@@ -316,7 +316,7 @@ function viewHome() {
   const active = S.accounts.filter(a => a.active !== false);
   const total = active.reduce((m, a) => addBy(m, a.currencyId, bal[a.id] || 0), new Map());
   const now = Date.now();
-  let h = header('Expense Tracker', { right: `<button class="icon-btn" data-a="go" data-v="settings" aria-label="Settings">⚙︎</button>` }) + '<div class="wrap">';
+  let h = header('MyFinTracker', { right: `<button class="icon-btn" data-a="go" data-v="settings" aria-label="Settings">⚙︎</button>` }) + '<div class="wrap">';
   if (S.tx.length && now - (S.settings.lastBackup || 0) > 14 * DAY) {
     h += `<div class="banner">⚠️<b>${S.settings.lastBackup ? 'Last backup was over 2 weeks ago.' : 'No backup yet.'} Your data lives only on this phone.</b><button class="btn sm" data-a="go" data-v="data" style="width:auto">Back up</button></div>`;
   }

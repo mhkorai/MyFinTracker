@@ -1,6 +1,6 @@
 {
-  "name": "Expense Tracker",
-  "short_name": "Expenses",
+  "name": "MyFinTracker",
+  "short_name": "MyFinTracker",
   "description": "Personal expense tracker. All data stays on your device.",
   "start_url": "./",
   "scope": "./",
