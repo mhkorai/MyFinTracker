@@ -338,7 +338,7 @@ function viewHome() {
   if (S.tx.length && now - (S.settings.lastBackup || 0) > 14 * DAY) {
     h += `<div class="banner">⚠️<b>${S.settings.lastBackup ? 'Last backup was over 2 weeks ago.' : 'No backup yet.'} Your data lives only on this phone.</b><button class="btn sm" data-a="go" data-v="data" style="width:auto">Back up</button></div>`;
   }
-  h += `<div class="card tap" data-a="go" data-v="accounts" style="cursor:pointer"><h3 style="display:flex;justify-content:space-between">Total balance <span class="chev" style="text-transform:none;letter-spacing:0">Accounts ›</span></h3><div class="big" style="font-size:1.6em">${fmtMulti(total)}</div></div>`;
+  h += `<div class="card tap" data-a="go" data-v="accounts" style="cursor:pointer"><h3 style="display:flex;justify-content:space-between">Total balance <span class="chev" style="text-transform:none;letter-spacing:0">Accounts ›</span></h3><div class="big" style="font-size:1.05em;font-weight:700">${fmtMulti(total)}</div></div>`;
   // daily budget
   const db = S.budgets.find(b => b.period === 'daily');
   if (db) { const st = budgetStatus(db); h += `<div class="card"><h3>${st.left >= 0 ? 'Available today' : 'Overspent today'}</h3><div class="big ${st.left >= 0 ? 'inc' : 'exp'}">${fmtB(Math.abs(st.left))}</div></div>`; }
@@ -354,8 +354,6 @@ function viewHome() {
       <button class="btn sm" data-a="planok" data-v="${p.id}">✓</button><button class="btn sm sec" data-a="planskip" data-v="${p.id}">Skip</button></div>`;
     }).join('')}</div>`;
   }
-  const pps = prepayList().filter(p => prepayLeft(p) > 0.0001);
-  if (pps.length) h += `<div class="card"><h3>Prepayments <button class="btn sm sec" style="float:right;margin-top:-6px" data-a="go" data-v="prepayments">All</button></h3>${pps.map(p => `<div class="row"><div class="dot" style="background:#9333ea">🅿</div><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">of ${fmt(p.sum, acc(p.accountId)?.currencyId)}</div></div><div class="amt">${fmt(prepayLeft(p), acc(p.accountId)?.currencyId)}</div></div>`).join('')}</div>`;
   const tiles = [['accounts', '🏦', 'Accounts', '#0f766e'], ['income', '📥', 'Income', '#16a34a'], ['expense', '🧾', 'Expenses', '#dc2626'], ['transfer', '🔄', 'Transfers', '#2563eb'],
   ['debts', '🤝', 'Debts', '#d97706'], ['hist', '📒', 'Financial movements', '#7b1fa2'], ['rep', '📊', 'Reports', '#0891b2'], ['categories', '🗂️', 'Categories', '#db2777'],
   ['budgets', '🎯', 'Budgets', '#65a30d'], ['prepayments', '🅿', 'Prepayments', '#9333ea'], ['planned', '🔁', 'Planned operations', '#ea580c'], ['currencies', '💱', 'Currencies', '#0d9488'],
