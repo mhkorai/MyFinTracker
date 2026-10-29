@@ -11,17 +11,26 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>MyFinTracker</title>
+<style>
+html,body{margin:0;background:#f2f4f7}
+@media (prefers-color-scheme:dark){html,body{background:#0b0f14}}
+#splash{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font:600 20px -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,sans-serif;color:#0f766e}
+#splash img{width:84px;height:84px;border-radius:20px;box-shadow:0 6px 20px rgba(15,118,110,.25)}
+#splash i{width:26px;height:26px;border:3px solid rgba(15,118,110,.2);border-top-color:#0f766e;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-color-scheme:dark){#splash{color:#2dd4bf}#splash i{border-color:rgba(45,212,191,.2);border-top-color:#2dd4bf}}
+</style>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div id="splash"><img src="icons/icon-192.png" alt=""><span>MyFinTracker</span><i></i></div></div>
 <div id="sheet-root"></div>
 <div id="lock-root"></div>
 <div id="toast"></div>
-<script src="xlsx.mini.min.js"></script>
-<script src="icons.js"></script>
-<script src="io.js"></script>
-<script src="sync.js"></script>
-<script src="app.js"></script>
+<script defer src="xlsx.mini.min.js"></script>
+<script defer src="icons.js"></script>
+<script defer src="io.js"></script>
+<script defer src="sync.js"></script>
+<script defer src="app.js"></script>
 </body>
 </html>
