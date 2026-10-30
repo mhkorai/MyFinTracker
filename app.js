@@ -519,32 +519,34 @@ function renderPage(pg) {
 const ACC_TYPES = [['account', 'Accounts'], ['card', 'Credit cards'], ['invest', 'Investments'], ['other', 'Other']];
 const accType = a => ACC_TYPES.some(t => t[0] === a.type) ? a.type : 'account';
 function pgAccounts() {
-  const bal = balances(); const so = !!U.sortAcc; const open = U.grpOpen || (U.grpOpen = new Set());
-  const right = `<button class="icon-btn" data-a="sortacc" aria-label="Sort" title="Sort" style="${so ? 'background:var(--brand);color:#fff' : ''}">${so ? '✓' : '⇅'}</button><button class="icon-btn" data-a="editgroup" aria-label="New group" title="New group">📁</button><button class="icon-btn" data-a="editacc">+</button>`;
-  const rowOf = (a, inGroup) => { const sib = S.accounts.filter(x => (x.groupId || '') === (a.groupId || '') && accType(x) === accType(a)); const k = sib.indexOf(a);
-    return `<div class="row ${so ? '' : 'tap'}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`} ${inGroup ? 'style="padding-left:18px"' : ''}>${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${k === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${k === sib.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : `<div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div>`}</div>`; };
-  const groups = (S.groups || []).filter(g => S.accounts.some(x => x.groupId === g.id) || true);
-  let h = header('Accounts', { back: 1, right }) + `<div class="wrap">${so ? '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap ✓. This order is used everywhere.</p>' : ''}`;
+  const bal = balances(); const so = !!U.sortAcc; const open = U.grpOpen || (U.grpOpen = new Set()); const tclosed = U.typeClosed || (U.typeClosed = new Set());
   const grpOf = a => (S.groups || []).find(g => g.id === a.groupId);
   const typeOfGroup = g => { const m = S.accounts.find(x => x.groupId === g.id); return m ? accType(m) : 'account'; };
   const used = ACC_TYPES.filter(([t]) => S.accounts.some(x => accType(x) === t) || (S.groups || []).some(g => typeOfGroup(g) === t && !S.accounts.some(x => x.groupId === g.id)));
-  const multi = used.length > 1;
-  const tclosed = U.typeClosed || (U.typeClosed = new Set());
-  if (multi || (S.groups || []).length) h += `<div class="btns" style="margin:0 0 6px;justify-content:flex-end"><button class="btn sm sec" data-a="expandall">Expand all</button><button class="btn sm sec" data-a="collapseall">Collapse all</button></div>`;
+  const multi = used.length > 1; const anyOpen = (multi && tclosed.size < used.length) || open.size > 0;
+  const acell = a => { const v = bal[a.id] || 0; return `<div class="acamt ${v < 0 ? 'exp' : ''}"><b>${fmtNum(v, a.currencyId)}</b><small>${esc(cur(a.currencyId)?.short || '')}</small></div>`; };
+  const rowOf = (a, inGroup) => { const sib = S.accounts.filter(x => (x.groupId || '') === (a.groupId || '') && accType(x) === accType(a)); const k = sib.indexOf(a);
+    return `<div class="row ${so ? '' : 'tap'} ${inGroup ? 'inner' : ''}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`}>${iconDot(a.icon)}<div class="grow"><div class="t" style="white-space:normal">${esc(a.name)}</div>${a.active === false ? '<div class="s"><span class="chip w">inactive</span></div>' : ''}</div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${k === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${k === sib.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : acell(a)}</div>`; };
+  let h = header('Accounts', { back: 1 }) + '<div class="wrap">';
+  h += `<div class="toolbar"><button class="chipbtn pri" data-a="editacc">＋ Account</button><button class="chipbtn" data-a="editgroup">📁 Group</button><button class="chipbtn ${so ? 'pri' : ''}" data-a="sortacc">${so ? '✓ Done' : '⇅ Sort'}</button>${multi || (S.groups || []).length ? `<button class="chipbtn" data-a="${anyOpen ? 'collapseall' : 'expandall'}">${anyOpen ? '⊟ Collapse' : '⊞ Expand'}</button>` : ''}</div>`;
+  if (so) h += '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap Done. This order is used everywhere.</p>';
+  if (!S.accounts.length && !(S.groups || []).length) return h + '<div class="card">' + emptyMsg('No accounts created yet.') + '</div></div>';
   (used.length ? used : [ACC_TYPES[0]]).forEach(([t, tl]) => {
-    const tshut = multi && tclosed.has(t);
-    if (multi) { const tt = new Map(); S.accounts.filter(x => accType(x) === t && x.active !== false).forEach(x => addBy(tt, x.currencyId, bal[x.id] || 0)); h += `<div class="sechead tap" data-a="typetoggle" data-v="${t}"><span><span class="catarrow" style="display:inline-grid;vertical-align:middle">${tshut ? '▸' : '▾'}</span> ${tl} <span style="font-weight:500;text-transform:none;letter-spacing:0">(${S.accounts.filter(x => accType(x) === t).length})</span></span><span class="secamt">${fmtMulti(tt)}</span></div>`; }
-    if (tshut) return;
-    (S.groups || []).filter(g => typeOfGroup(g) === t).forEach(g => {
-      const mem = S.accounts.filter(x => x.groupId === g.id); const tot = new Map();
-      mem.filter(x => x.active !== false).forEach(x => addBy(tot, x.currencyId, bal[x.id] || 0));
-      const isOpen = open.has(g.id);
-      h += `<div class="card grp"><div class="row tap" data-a="grptoggle" data-v="${g.id}"><button class="catarrow" tabindex="-1">${isOpen ? '▾' : '▸'}</button>${iconDot(g.icon || '📁')}<div class="grow"><div class="t" style="white-space:normal">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:32px;height:32px;box-shadow:none;background:var(--bg)">✎</button></div><div class="grptot">${fmtMulti(tot)}</div>${isOpen ? (mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:8px 18px">No accounts in this group yet.</div>') : ''}</div>`;
-    });
-    const free = S.accounts.filter(x => accType(x) === t && (!x.groupId || !grpOf(x)));
-    if (free.length || !S.accounts.length) h += `<div class="card">${free.length ? free.map(x => rowOf(x, false)).join('') : emptyMsg('No accounts created yet.')}</div>`;
+    const tshut = multi && tclosed.has(t); const mine = S.accounts.filter(x => accType(x) === t);
+    const tt = new Map(); mine.filter(x => x.active !== false).forEach(x => addBy(tt, x.currencyId, bal[x.id] || 0));
+    h += '<div class="card sec">';
+    if (multi) h += `<div class="sechead2 tap" data-a="typetoggle" data-v="${t}"><span class="catarrow">${tshut ? '▸' : '▾'}</span><div class="grow"><div class="t">${tl}</div><div class="s">${mine.length} account${mine.length === 1 ? '' : 's'}</div></div><div class="secamt2">${fmtMulti(tt)}</div></div>`;
+    if (!tshut) {
+      (S.groups || []).filter(g => typeOfGroup(g) === t).forEach(g => {
+        const mem = S.accounts.filter(x => x.groupId === g.id); const gt = new Map(); mem.filter(x => x.active !== false).forEach(x => addBy(gt, x.currencyId, bal[x.id] || 0)); const isOpen = open.has(g.id);
+        h += `<div class="row tap grprow" data-a="grptoggle" data-v="${g.id}"><span class="catarrow">${isOpen ? '▾' : '▸'}</span>${iconDot(g.icon || '📁')}<div class="grow"><div class="t" style="white-space:normal">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><div class="secamt2 small">${fmtMulti(gt)}</div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:30px;height:30px;box-shadow:none;background:var(--bg);flex:none">✎</button></div>`;
+        if (isOpen) h += mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:6px 0 6px 46px">No accounts in this group yet.</div>';
+      });
+      h += mine.filter(x => !x.groupId || !grpOf(x)).map(x => rowOf(x, false)).join('');
+    }
+    h += '</div>';
   });
-  return h;
+  return h + '</div>';
 }
 const defCatId = type => S.categories.find(c => c.type === type && c.isDefault)?.id || '';
 function pgCategories() {

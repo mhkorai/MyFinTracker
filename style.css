@@ -199,3 +199,23 @@ label.chk .mi{flex:none}
 .sechead.tap{cursor:pointer}
 
 .btns .btn.sm.sec{background:var(--card);box-shadow:var(--shadow)}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.chipbtn{border:0;background:var(--card);box-shadow:var(--shadow);border-radius:99px;padding:9px 14px;font-weight:600;font-size:.86em;color:var(--text);white-space:nowrap}
+.chipbtn.pri{background:var(--brand);color:#fff}
+:root[data-theme=dark] .chipbtn.pri{color:#06201d}
+.card.sec{padding:6px 14px 4px}
+.sechead2{display:flex;align-items:center;gap:8px;padding:10px 0 10px;border-bottom:1px solid var(--line)}
+.sechead2 .t{font-size:1.02em}
+.secamt2{text-align:right;font-weight:700;min-width:120px}
+.secamt2.small{font-size:.86em;min-width:100px}
+.secamt2 .mrow{gap:10px}
+.sec .row.inner{padding-left:30px;border-left:3px solid var(--brand-l);margin-left:12px}
+.sec .grprow{background:var(--bg);margin:6px -14px 0;padding-left:14px;padding-right:14px;border-bottom:0}
+.acamt{text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;flex:none}
+.acamt b{font-size:1.02em;font-variant-numeric:tabular-nums}
+.acamt small{color:var(--muted);font-size:.72em;font-weight:700;letter-spacing:.04em}
+
+.sechead2 .t{font-weight:700;font-size:1.05em}
+.secamt2.small{min-width:0;white-space:nowrap}
+.sec .grprow .grow{min-width:0}
