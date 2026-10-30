@@ -575,19 +575,31 @@ function pgBudgets() {
 function debtBy(d) { const m = new Map(); addBy(m, acc(d.accountId)?.currencyId, d.amount); (d.repayments || []).forEach(r => addBy(m, acc(r.accountId)?.currencyId, -r.sum)); return m; }
 const debtOpen = d => [...debtBy(d).values()].some(v => Math.abs(v) > 0.005);
 function debtRemaining(d) { return d.amount - (d.repayments || []).reduce((s, r) => s + r.sum, 0); }
+// signed balance per currency from MY point of view: positive = they owe me, negative = I owe them.
+// The side follows the numbers, not the label the debt started with.
+function debtNet(d) { const m = new Map(); debtBy(d).forEach((v, k) => m.set(k, d.dir === 'lend' ? v : -v)); return m; }
+function debtSide(d) {
+  const v = [...debtNet(d).values()].filter(x => Math.abs(x) > 0.005); const pos = v.some(x => x > 0), neg = v.some(x => x < 0);
+  return pos && neg ? 'both' : pos ? 'owes' : neg ? 'owe' : 'zero';
+}
+const debtLines = (d, big) => { const net = debtNet(d); const e = [...net].filter(([, v]) => Math.abs(v) > 0.005);
+  if (!e.length) { const k = acc(d.accountId)?.currencyId; return `<span class="mrow"><span class="mc">${esc((cur(k) || defCur()).short || '')}</span><span class="ma">${fmtNum(0, k)}</span></span>`; }
+  return e.map(([k, v]) => `<span class="mrow ${v > 0 ? 'inc' : 'exp'}"><span class="mc">${esc((cur(k) || defCur()).short || '')}</span><span class="ma">${fmtNum(v, k)}</span></span>`).join(''); };
 function pgDebts() {
   const list = S.debts.filter(d => !U.hideZero || debtOpen(d));
   const owedToMe = new Map(), iOwe = new Map();
-  S.debts.forEach(d => debtBy(d).forEach((v, k) => addBy(d.dir === 'lend' ? owedToMe : iOwe, k, v)));
+  S.debts.forEach(d => debtNet(d).forEach((v, k) => { if (v > 0.005) addBy(owedToMe, k, v); else if (v < -0.005) addBy(iOwe, k, -v); }));
+  const side = { owes: ['Owes you', 'var(--inc)', '↗'], owe: ['You owe', 'var(--exp)', '↙'], both: ['Owes you / you owe', 'var(--tr)', '⇄'], zero: ['Settled', 'var(--muted)', '✓'] };
   return header('Debts', { back: 1, right: `<button class="icon-btn" data-a="editdebt">+</button>` }) + `<div class="wrap"><div class="card"><div class="sum3" style="margin:0"><div><small>Owed to you</small><b class="inc">${fmtMulti(owedToMe)}</b></div><div><small>You owe</small><b class="exp">${fmtMulti(iOwe)}</b></div></div></div>
   <label class="chk"><input type="checkbox" data-a="hidezero" ${U.hideZero ? 'checked' : ''}> Hide debts with zero balance</label>
-  <div class="card">${list.length ? list.map(d => `<div class="row tap" data-a="go" data-v="debt" data-arg="${d.id}"><div class="dot" style="background:${d.dir === 'lend' ? 'var(--inc)' : 'var(--exp)'}">${d.dir === 'lend' ? '↗' : '↙'}</div><div class="grow"><div class="t">${esc(d.name)}</div><div class="s">${d.dir === 'lend' ? 'Owes you' : 'You owe'} · ${ymd(d.date)}</div></div><div class="amt" style="text-align:right">${fmtMulti(debtBy(d), acc(d.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('Here you can store and manage information about debts')}</div></div>`;
+  <div class="card">${list.length ? list.map(d => { const sd = side[debtSide(d)]; return `<div class="row tap" data-a="go" data-v="debt" data-arg="${d.id}"><div class="dot" style="background:${sd[1]}">${sd[2]}</div><div class="grow"><div class="t">${esc(d.name)}</div><div class="s">${sd[0]} · ${ymd(d.date)}</div></div><div class="amt" style="text-align:right">${debtLines(d)}</div></div>`; }).join('') : emptyMsg('Here you can store and manage information about debts')}</div></div>`;
 }
 function pgDebt(id) {
   const d = S.debts.find(x => x.id === id); if (!d) { U.stack.pop(); return viewMore(); }
-  const a = acc(d.accountId);
-  return header(d.name, { back: 1, right: `<button class="icon-btn" data-a="editdebt" data-v="${d.id}">✎</button>` }) + `<div class="wrap"><div class="card"><h3>${d.dir === 'lend' ? 'Owes you' : 'You owe'}</h3><div class="big" style="font-size:1.5em">${fmtMulti(debtBy(d), a?.currencyId)}</div>
-  <div class="mut" style="font-size:.85em">of ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div><div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">Add repayment</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">Increase debt</button></div></div>
+  const a = acc(d.accountId); const lend = d.dir === 'lend'; const sd = debtSide(d);
+  const title = { owes: 'Owes you', owe: 'You owe', both: 'Owes you / you owe', zero: 'Settled' }[sd];
+  return header(d.name, { back: 1, right: `<button class="icon-btn" data-a="editdebt" data-v="${d.id}">✎</button>` }) + `<div class="wrap"><div class="card"><h3>${title}</h3><div class="big" style="font-size:1.5em">${debtLines(d)}</div>
+  <div class="mut" style="font-size:.85em">Started: ${lend ? 'you lent' : 'you borrowed'} ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div><div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">${lend ? 'They paid me back' : 'I paid back'}</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">${lend ? 'I lent more' : 'I borrowed more'}</button></div></div>
   <div class="card"><h3>History</h3>${(d.repayments || []).length ? [...d.repayments].sort((x, y) => y.date - x.date).map(r => `<div class="row tap" data-a="editrepay" data-v="${d.id}" data-arg="${r.id}"><div class="grow"><div class="t">${r.sum < 0 ? 'Increase' : 'Repayment'}</div><div class="s">${ymd(r.date)} · ${esc(acc(r.accountId)?.name)}</div></div><div class="amt">${fmt(Math.abs(r.sum), acc(r.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('No repayments yet')}</div></div>`;
 }
 function pgPrepayments() {
@@ -965,7 +977,7 @@ function syncDebtTx(d) {
 }
 function editRepay(debtId, repId, increase) {
   const d = S.debts.find(x => x.id === debtId); const r = repId ? d.repayments.find(x => x.id === repId) : null; const inc = increase || (r && r.sum < 0);
-  form(r ? 'Edit entry' : inc ? 'Increase debt' : 'Repayment', [
+  form(r ? 'Edit entry' : inc ? (d.dir === 'lend' ? 'I lent more' : 'I borrowed more') : (d.dir === 'lend' ? 'They paid me back' : 'I paid back'), [
     { k: 'sum', label: 'Amount', type: 'number', value: r ? Math.abs(r.sum) : Math.max(0, debtBy(d).get((cur(acc(d.accountId)?.currencyId) || defCur()).id) || 0) || '' },
     { k: 'acc', label: 'Account', type: 'select', value: r?.accountId || d.accountId, options: accOptions(r?.accountId) }, { k: 'date', label: 'Date', type: 'date', value: ymd(r?.date || Date.now()) }], v => {
       if (!(v.sum > 0)) return 'Enter a number greater than zero';
