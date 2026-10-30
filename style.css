@@ -219,3 +219,8 @@ label.chk .mi{flex:none}
 .sechead2 .t{font-weight:700;font-size:1.05em}
 .secamt2.small{min-width:0;white-space:nowrap}
 .sec .grprow .grow{min-width:0}
+
+.chipbtn.pri2{background:var(--card);color:var(--brand);box-shadow:inset 0 0 0 2px var(--brand)}
+.toolbar.stick{position:sticky;top:var(--hdrh,56px);z-index:4;background:var(--bg);margin:0 -16px 8px;padding:6px 16px;box-shadow:0 1px 0 var(--line)}
+.toolbar.tools .chipbtn{font-size:.82em;padding:7px 12px;box-shadow:none;border:1px solid var(--line)}
+.toolbar.tools .chipbtn.pri{border-color:var(--brand)}

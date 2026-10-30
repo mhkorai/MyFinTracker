@@ -264,6 +264,7 @@ function render() {
   html += `<nav class="tabbar"><div>${tabs.map(([k, i, l]) => k === 'add' ? `<button class="fab" data-a="addtx" aria-label="Add">+</button>` :
     `<button class="tab ${U.tab === k && !pg ? 'on' : ''}" data-a="tab" data-v="${k}"><span>${i}</span>${l}</button>`).join('')}</div></nav>`;
   $('#app').innerHTML = html;
+  { const tp = $('#app .top'); if (tp) document.documentElement.style.setProperty('--hdrh', tp.offsetHeight + 'px'); }
   bindRender();
 }
 function header(title, opts = {}) {
@@ -528,7 +529,8 @@ function pgAccounts() {
   const rowOf = (a, inGroup) => { const sib = S.accounts.filter(x => (x.groupId || '') === (a.groupId || '') && accType(x) === accType(a)); const k = sib.indexOf(a);
     return `<div class="row ${so ? '' : 'tap'} ${inGroup ? 'inner' : ''}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`}>${iconDot(a.icon)}<div class="grow"><div class="t" style="white-space:normal">${esc(a.name)}</div>${a.active === false ? '<div class="s"><span class="chip w">inactive</span></div>' : ''}</div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${k === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${k === sib.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : acell(a)}</div>`; };
   let h = header('Accounts', { back: 1 }) + '<div class="wrap">';
-  h += `<div class="toolbar"><button class="chipbtn pri" data-a="editacc">＋ Account</button><button class="chipbtn" data-a="editgroup">📁 Group</button><button class="chipbtn ${so ? 'pri' : ''}" data-a="sortacc">${so ? '✓ Done' : '⇅ Sort'}</button>${multi || (S.groups || []).length ? `<button class="chipbtn" data-a="${anyOpen ? 'collapseall' : 'expandall'}">${anyOpen ? '⊟ Collapse' : '⊞ Expand'}</button>` : ''}</div>`;
+  h += `<div class="toolbar"><button class="chipbtn pri" data-a="editacc">＋ New account</button><button class="chipbtn pri2" data-a="editgroup">＋ New group</button></div>`;
+  h += `<div class="toolbar tools stick"><button class="chipbtn ${so ? 'pri' : ''}" data-a="sortacc">${so ? '✓ Done sorting' : '⇅ Sort'}</button>${multi || (S.groups || []).length ? `<button class="chipbtn" data-a="${anyOpen ? 'collapseall' : 'expandall'}">${anyOpen ? '⊟ Collapse all' : '⊞ Expand all'}</button>` : ''}</div>`;
   if (so) h += '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap Done. This order is used everywhere.</p>';
   if (!S.accounts.length && !(S.groups || []).length) return h + '<div class="card">' + emptyMsg('No accounts created yet.') + '</div></div>';
   (used.length ? used : [ACC_TYPES[0]]).forEach(([t, tl]) => {
