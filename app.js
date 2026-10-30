@@ -175,7 +175,7 @@ function shiftPeriod(p, dir) {
 // ───────────────────────── UI state ─────────────────────────
 const EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10.5 7 10.5 7a17 17 0 0 1-3.2 4M6.5 6.6C3.6 8.4 1.5 12 1.5 12S5.5 19 12 19c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
-const U = { hide: true, tab: 'home', stack: [], ph: { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }, pr: { kind: 'month', ref: Date.now(), from: null, to: null },
+const U = { hide: false, tab: 'home', stack: [], ph: { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }, pr: { kind: 'month', ref: Date.now(), from: null, to: null },
   hf: { type: 'all', acc: '', cat: '', q: '' }, rep: { type: 'pie-exp', acc: '', leaf: false }, hideZero: true, catType: 'expense' };
 const page = () => U.stack[U.stack.length - 1] || null;
 function go(name, arg) { U.sortAcc = false; U.sortCat = false; U.stack.push({ name, arg }); render(); window.scrollTo(0, 0); }
@@ -1134,5 +1134,3 @@ addEventListener('pagehide', () => flush());
   window.__S = () => S;
 })();
 
-// amounts are hidden every time the app is opened or brought back from the background
-document.addEventListener('visibilitychange', () => { if (document.hidden) U.hide = true; else render(); });
