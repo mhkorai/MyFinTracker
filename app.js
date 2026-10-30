@@ -516,21 +516,30 @@ function renderPage(pg) {
   return '';
 }
 
+const ACC_TYPES = [['account', 'Accounts'], ['card', 'Credit cards'], ['invest', 'Investments'], ['other', 'Other']];
+const accType = a => ACC_TYPES.some(t => t[0] === a.type) ? a.type : 'account';
 function pgAccounts() {
   const bal = balances(); const so = !!U.sortAcc; const open = U.grpOpen || (U.grpOpen = new Set());
   const right = `<button class="icon-btn" data-a="sortacc" aria-label="Sort" title="Sort" style="${so ? 'background:var(--brand);color:#fff' : ''}">${so ? '✓' : '⇅'}</button><button class="icon-btn" data-a="editgroup" aria-label="New group" title="New group">📁</button><button class="icon-btn" data-a="editacc">+</button>`;
-  const rowOf = (a, inGroup) => { const sib = S.accounts.filter(x => (x.groupId || '') === (a.groupId || '')); const k = sib.indexOf(a);
+  const rowOf = (a, inGroup) => { const sib = S.accounts.filter(x => (x.groupId || '') === (a.groupId || '') && accType(x) === accType(a)); const k = sib.indexOf(a);
     return `<div class="row ${so ? '' : 'tap'}" ${so ? '' : `data-a="editacc" data-v="${a.id}"`} ${inGroup ? 'style="padding-left:18px"' : ''}>${iconDot(a.icon)}<div class="grow"><div class="t">${esc(a.name)} ${a.active === false ? '<span class="chip w">inactive</span>' : ''}</div><div class="s">${esc(cur(a.currencyId)?.short)}</div></div>${so ? `<button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="-1" ${k === 0 ? 'disabled style="opacity:.3"' : ''}>▲</button><button class="icon-btn" data-a="accmove" data-v="${a.id}" data-arg="1" ${k === sib.length - 1 ? 'disabled style="opacity:.3"' : ''}>▼</button>` : `<div class="amt">${fmt(bal[a.id] || 0, a.currencyId)}</div>`}</div>`; };
   const groups = (S.groups || []).filter(g => S.accounts.some(x => x.groupId === g.id) || true);
   let h = header('Accounts', { back: 1, right }) + `<div class="wrap">${so ? '<p class="mut" style="margin:0 0 8px;font-size:.85em">Use the arrows to move accounts up or down, then tap ✓. This order is used everywhere.</p>' : ''}`;
-  groups.forEach(g => {
-    const mem = S.accounts.filter(x => x.groupId === g.id); const tot = new Map();
-    mem.filter(x => x.active !== false).forEach(x => addBy(tot, x.currencyId, bal[x.id] || 0));
-    const isOpen = open.has(g.id);
-    h += `<div class="card grp"><div class="row tap" data-a="grptoggle" data-v="${g.id}"><button class="catarrow" tabindex="-1">${isOpen ? '▾' : '▸'}</button>${iconDot(g.icon || '📁')}<div class="grow"><div class="t" style="white-space:normal">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:32px;height:32px;box-shadow:none;background:var(--bg)">✎</button></div><div class="grptot">${fmtMulti(tot)}</div>${isOpen ? (mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:8px 18px">No accounts in this group yet.</div>') : ''}</div>`;
+  const grpOf = a => (S.groups || []).find(g => g.id === a.groupId);
+  const typeOfGroup = g => { const m = S.accounts.find(x => x.groupId === g.id); return m ? accType(m) : 'account'; };
+  const used = ACC_TYPES.filter(([t]) => S.accounts.some(x => accType(x) === t) || (S.groups || []).some(g => typeOfGroup(g) === t && !S.accounts.some(x => x.groupId === g.id)));
+  const multi = used.length > 1;
+  (used.length ? used : [ACC_TYPES[0]]).forEach(([t, tl]) => {
+    if (multi) { const tt = new Map(); S.accounts.filter(x => accType(x) === t && x.active !== false).forEach(x => addBy(tt, x.currencyId, bal[x.id] || 0)); h += `<div class="sechead"><span>${tl}</span><span class="secamt">${fmtMulti(tt)}</span></div>`; }
+    (S.groups || []).filter(g => typeOfGroup(g) === t).forEach(g => {
+      const mem = S.accounts.filter(x => x.groupId === g.id); const tot = new Map();
+      mem.filter(x => x.active !== false).forEach(x => addBy(tot, x.currencyId, bal[x.id] || 0));
+      const isOpen = open.has(g.id);
+      h += `<div class="card grp"><div class="row tap" data-a="grptoggle" data-v="${g.id}"><button class="catarrow" tabindex="-1">${isOpen ? '▾' : '▸'}</button>${iconDot(g.icon || '📁')}<div class="grow"><div class="t" style="white-space:normal">${esc(g.name)}</div><div class="s">${mem.length} account${mem.length === 1 ? '' : 's'}</div></div><button class="icon-btn" data-a="editgroup" data-v="${g.id}" aria-label="Edit group" style="width:32px;height:32px;box-shadow:none;background:var(--bg)">✎</button></div><div class="grptot">${fmtMulti(tot)}</div>${isOpen ? (mem.length ? mem.map(x => rowOf(x, true)).join('') : '<div class="s mut" style="padding:8px 18px">No accounts in this group yet.</div>') : ''}</div>`;
+    });
+    const free = S.accounts.filter(x => accType(x) === t && (!x.groupId || !grpOf(x)));
+    if (free.length || !S.accounts.length) h += `<div class="card">${free.length ? free.map(x => rowOf(x, false)).join('') : emptyMsg('No accounts created yet.')}</div>`;
   });
-  const free = S.accounts.filter(x => !x.groupId || !(S.groups || []).some(g => g.id === x.groupId));
-  h += `<div class="card">${free.length ? free.map(x => rowOf(x, false)).join('') : (S.accounts.length ? '<div class="s mut" style="padding:8px 0">All accounts are in groups.</div>' : emptyMsg('No accounts created yet.'))}</div></div>`;
   return h;
 }
 const defCatId = type => S.categories.find(c => c.type === type && c.isDefault)?.id || '';
@@ -875,6 +884,7 @@ function editAccount(id) {
   form(a ? 'Edit account' : 'New account', [
     { k: 'name', label: 'Name', value: a?.name || '' },
     { k: 'icon', label: 'Icon', type: 'icon', value: a?.icon || 'svg:wallet-blue' },
+    { k: 'type', label: 'Type', type: 'select', value: a ? accType(a) : 'account', options: ACC_TYPES },
     ...((S.groups || []).length ? [{ k: 'group', label: 'Group', type: 'select', value: a?.groupId || '', options: [['', '— none —'], ...S.groups.map(g => [g.id, g.name])] }] : []),
     { k: 'cur', label: 'Currency', type: 'select', value: a?.currencyId || S.settings.defCur, options: S.currencies.map(c => [c.id, c.short + ' – ' + (c.name || '')]) },
     { k: 'open', label: a ? 'Opening balance (your balance as imported / before new entries)' : 'Current balance', type: 'number', value: a?.opening ?? 0 },
@@ -882,7 +892,7 @@ function editAccount(id) {
     { k: 'def', label: 'Use as default account', type: 'checkbox', value: !!a?.isDefault }], v => {
       if (!v.name) return 'Enter a name';
       if (v.def) S.accounts.forEach(x => x.isDefault = false);
-      const rec = { name: v.name, icon: v.icon, currencyId: v.cur, opening: v.open || 0, active: v.active, isDefault: v.def };
+      const rec = { type: v.type, name: v.name, icon: v.icon, currencyId: v.cur, opening: v.open || 0, active: v.active, isDefault: v.def };
       if (v.group) rec.groupId = v.group; else if (a) delete a.groupId;
       if (a) Object.assign(a, rec); else S.accounts.push({ id: uid(), ...rec });
     }, a ? { extraHtml: `<div class="card" style="margin:14px 0 0"><button type="button" class="acctx" data-acctx>Transactions (${accTx(a.id).length}) <span>▾</span></button><div id="acctxlist" hidden></div></div>`, after: () => { const bt = $('[data-acctx]'); if (bt) bt.onclick = () => { const l = $('#acctxlist'); if (l.hidden && !l.dataset.done) { const list = accTx(a.id); l.innerHTML = list.length ? list.map(t => txRowHtml(t, { time: true })).join('') : emptyMsg('No transactions for this account.'); l.dataset.done = 1; } l.hidden = !l.hidden; bt.querySelector('span').textContent = l.hidden ? '▾' : '▴'; }; }, onDelete: () => { const used = S.tx.some(t => t.accountId === a.id || t.toAccountId === a.id); if (used) { a.active = false; toast('Account has transactions – marked inactive'); } else S.accounts = S.accounts.filter(x => x.id !== a.id); }, delMsg: 'Delete this account? (If it has transactions it will be hidden instead.)' } : {});
@@ -1066,7 +1076,7 @@ const actions = {
   menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   eye: () => { U.hide = !U.hide; render(); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
-  accmove: (v, el) => { const A = S.accounts, i = A.findIndex(x => x.id === v); if (i < 0) return; const d = +el.dataset.arg; let j = i + d; while (j >= 0 && j < A.length && (A[j].groupId || '') !== (A[i].groupId || '')) j += d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; save(); render(); },
+  accmove: (v, el) => { const A = S.accounts, i = A.findIndex(x => x.id === v); if (i < 0) return; const d = +el.dataset.arg; let j = i + d; while (j >= 0 && j < A.length && ((A[j].groupId || '') !== (A[i].groupId || '') || accType(A[j]) !== accType(A[i]))) j += d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; save(); render(); },
   grptoggle: v => { const o = U.grpOpen || (U.grpOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editgroup: (v, el) => { if (el && el.dataset && el.closest && el.closest('[data-a=grptoggle]')) { /* pencil inside group row */ } editGroup(v); },
   ghsetup: () => ghForm(), ghnow: () => ghBackup(true),

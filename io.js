@@ -38,8 +38,8 @@ function buildWorkbook() {
   const accName = id => acc(id)?.name || '';
   add('Info', [['Key', 'Value'], ['App', 'MyFinTracker'], ['Format version', 2], ['Exported at', new Date().toISOString()], ['Default currency', defCur().short || '']], [22, 34]);
   add('Currencies', [['ID', 'Code', 'Name', 'Decimals', 'Rate to default currency'], ...S.currencies.map(c => [c.id, c.short, c.name || '', c.dec, c.id === S.settings.defCur ? 1 : c.rate])], [14, 10, 22, 10, 24]);
-  add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)', 'Balance as of (ms)', 'Group'],
-  ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0), a.asOf || '', (S.groups || []).find(g => g.id === a.groupId)?.name || ''])], [14, 34, 6, 10, 16, 8, 8, 26]);
+  add('Accounts', [['ID', 'Name', 'Icon', 'Currency', 'Opening balance', 'Active', 'Default', 'Current balance (info only)', 'Balance as of (ms)', 'Group', 'Type'],
+  ...S.accounts.map(a => [a.id, a.name, a.icon || '', cur(a.currencyId)?.short || '', a.opening || 0, YN(a.active !== false), YN(!!a.isDefault), r2(bal[a.id] || 0), a.asOf || '', (S.groups || []).find(g => g.id === a.groupId)?.name || '', accType(a)])], [14, 34, 6, 10, 16, 8, 8, 26]);
   const cats = [...catSorted('expense'), ...catSorted('income')];
   add('Groups', [['Name', 'Icon'], ...(S.groups || []).map(g => [g.name, g.icon || ''])], [28, 10]);
   add('Categories', [['ID', 'Type', 'Name', 'Parent ID', 'Order', 'Full name (info only)'], ...cats.map(c => [c.id, c.type, c.name, c.parentId || '', c.order, catPath(c.id)])], [14, 10, 28, 14, 8, 40]);
@@ -76,7 +76,7 @@ function restoreFromWorkbook(wb) {
   get('Accounts').forEach(r => {
     const name = String(col(r, 'Name')).trim(); if (!name) return;
     let c = curByCode(col(r, 'Currency')); if (!c) { c = { id: uid(), short: String(col(r, 'Currency') || 'CUR'), name: '', dec: 2, rate: 1 }; N.currencies.push(c); }
-    N.accounts.push({ id: String(col(r, 'ID') || uid()), name, icon: String(col(r, 'Icon') || '💵'), currencyId: c.id, opening: numOf(col(r, 'Opening balance'), 0), active: col(r, 'Active') === '' ? true : isYes(col(r, 'Active')), isDefault: isYes(col(r, 'Default')), asOf: numOf(col(r, 'Balance as of (ms)'), 0) || 0, ...(() => { const gn = String(col(r, 'Group')).trim(); if (!gn) return {}; let g = N.groups.find(x => x.name === gn); if (!g) { g = { id: uid(), name: gn }; N.groups.push(g); } return { groupId: g.id }; })() });
+    N.accounts.push({ id: String(col(r, 'ID') || uid()), name, icon: String(col(r, 'Icon') || '💵'), currencyId: c.id, opening: numOf(col(r, 'Opening balance'), 0), active: col(r, 'Active') === '' ? true : isYes(col(r, 'Active')), isDefault: isYes(col(r, 'Default')), asOf: numOf(col(r, 'Balance as of (ms)'), 0) || 0, type: (['account', 'card', 'invest', 'other'].includes(String(col(r, 'Type'))) ? String(col(r, 'Type')) : 'account'), ...(() => { const gn = String(col(r, 'Group')).trim(); if (!gn) return {}; let g = N.groups.find(x => x.name === gn); if (!g) { g = { id: uid(), name: gn }; N.groups.push(g); } return { groupId: g.id }; })() });
   });
   if (!N.settings.defCur) N.settings.defCur = N.currencies[0]?.id || null;
   get('Categories').forEach(r => { const name = String(col(r, 'Name')).trim(); if (!name) return; N.categories.push({ id: String(col(r, 'ID') || uid()), name, type: /inc/i.test(col(r, 'Type')) ? 'income' : 'expense', parentId: col(r, 'Parent ID') ? String(col(r, 'Parent ID')) : null, order: numOf(col(r, 'Order'), 0) }); });
@@ -152,6 +152,7 @@ function importRows(rows) {
 // ───────────────────────── FinancePM backup → app state ─────────────────────────
 const PM_SYMBOLS = { '$': 'USD', '€': 'EUR', '£': 'GBP', '₽': 'RUB', '¥': 'JPY', 'грн': 'UAH' };
 const PM_RATES_SAR = { SAR: 1, USD: 3.75, AED: 1.0211, PKR: 0.0134, EUR: 4.35, GBP: 5.0, INR: 0.0447, KWD: 12.2, QAR: 1.03, BHD: 9.95, OMR: 9.74, EGP: 0.077, TRY: 0.09, CNY: 0.52, JPY: 0.025 };
+function pmType(name) { const n = name.toLowerCase(); if (/credit card|\bcard\b/.test(n)) return 'card'; if (/prize|bond|invest|binance|mexc|bybit|crypto|stock|gold/.test(n)) return 'invest'; return 'account'; }
 function pmIcon(name) {
   const n = name.toLowerCase();
   if (/credit card|card/.test(n)) return 'svg:card-blue'; if (/^cash/.test(n)) return 'svg:bills-green'; if (/prize|bond/.test(n)) return 'svg:deposit-orange';
@@ -180,7 +181,7 @@ function financePMToState(d) {
   const accMap = {};
   [...d.accounts].sort((a, b) => (a.orderId || 0) - (b.orderId || 0) || a.id - b.id).forEach(a => {
     const id = uid(); accMap[a.id] = id;
-    N.accounts.push({ id, name: a.name, icon: pmIcon(a.name), currencyId: curMap[a.currencyId], opening: r2(a.balance), active: a.active === 1, isDefault: a.isDef === 1 });
+    N.accounts.push({ id, name: a.name, icon: pmIcon(a.name), type: pmType(a.name), currencyId: curMap[a.currencyId], opening: r2(a.balance), active: a.active === 1, isDefault: a.isDef === 1 });
   });
   // categories (available or used, plus ancestors)
   const catById = new Map(d.categories.map(c => [c.id, c])); const need = new Set();

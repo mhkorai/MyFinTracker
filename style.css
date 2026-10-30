@@ -189,3 +189,9 @@ label.chk .mi{flex:none}
 .hometot .mrow{padding:5px 0;align-items:center}
 .hometot .mc{font-size:.95em!important;font-weight:700;color:var(--muted)}
 .hometot .ma{font-size:1.2em;font-weight:800;letter-spacing:-.01em}
+
+.sechead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 4px 6px;font-weight:700;font-size:.82em;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.sechead .secamt{text-transform:none;letter-spacing:0;font-weight:700;color:var(--text);font-size:1.12em;min-width:130px}
+
+.top .back{white-space:nowrap;flex:none}
+.top h1{min-width:0}
