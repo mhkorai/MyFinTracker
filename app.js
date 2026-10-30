@@ -529,8 +529,12 @@ function pgAccounts() {
   const typeOfGroup = g => { const m = S.accounts.find(x => x.groupId === g.id); return m ? accType(m) : 'account'; };
   const used = ACC_TYPES.filter(([t]) => S.accounts.some(x => accType(x) === t) || (S.groups || []).some(g => typeOfGroup(g) === t && !S.accounts.some(x => x.groupId === g.id)));
   const multi = used.length > 1;
+  const tclosed = U.typeClosed || (U.typeClosed = new Set());
+  if (multi || (S.groups || []).length) h += `<div class="btns" style="margin:0 0 6px;justify-content:flex-end"><button class="btn sm sec" data-a="expandall">Expand all</button><button class="btn sm sec" data-a="collapseall">Collapse all</button></div>`;
   (used.length ? used : [ACC_TYPES[0]]).forEach(([t, tl]) => {
-    if (multi) { const tt = new Map(); S.accounts.filter(x => accType(x) === t && x.active !== false).forEach(x => addBy(tt, x.currencyId, bal[x.id] || 0)); h += `<div class="sechead"><span>${tl}</span><span class="secamt">${fmtMulti(tt)}</span></div>`; }
+    const tshut = multi && tclosed.has(t);
+    if (multi) { const tt = new Map(); S.accounts.filter(x => accType(x) === t && x.active !== false).forEach(x => addBy(tt, x.currencyId, bal[x.id] || 0)); h += `<div class="sechead tap" data-a="typetoggle" data-v="${t}"><span><span class="catarrow" style="display:inline-grid;vertical-align:middle">${tshut ? '▸' : '▾'}</span> ${tl} <span style="font-weight:500;text-transform:none;letter-spacing:0">(${S.accounts.filter(x => accType(x) === t).length})</span></span><span class="secamt">${fmtMulti(tt)}</span></div>`; }
+    if (tshut) return;
     (S.groups || []).filter(g => typeOfGroup(g) === t).forEach(g => {
       const mem = S.accounts.filter(x => x.groupId === g.id); const tot = new Map();
       mem.filter(x => x.active !== false).forEach(x => addBy(tot, x.currencyId, bal[x.id] || 0));
@@ -1077,6 +1081,9 @@ const actions = {
   eye: () => { U.hide = !U.hide; render(); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
   accmove: (v, el) => { const A = S.accounts, i = A.findIndex(x => x.id === v); if (i < 0) return; const d = +el.dataset.arg; let j = i + d; while (j >= 0 && j < A.length && ((A[j].groupId || '') !== (A[i].groupId || '') || accType(A[j]) !== accType(A[i]))) j += d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; save(); render(); },
+  typetoggle: v => { const o = U.typeClosed || (U.typeClosed = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
+  expandall: () => { U.typeClosed = new Set(); U.grpOpen = new Set((S.groups || []).map(g => g.id)); render(); },
+  collapseall: () => { U.typeClosed = new Set(ACC_TYPES.map(t => t[0])); U.grpOpen = new Set(); render(); },
   grptoggle: v => { const o = U.grpOpen || (U.grpOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editgroup: (v, el) => { if (el && el.dataset && el.closest && el.closest('[data-a=grptoggle]')) { /* pencil inside group row */ } editGroup(v); },
   ghsetup: () => ghForm(), ghnow: () => ghBackup(true),

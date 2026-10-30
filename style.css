@@ -195,3 +195,7 @@ label.chk .mi{flex:none}
 
 .top .back{white-space:nowrap;flex:none}
 .top h1{min-width:0}
+
+.sechead.tap{cursor:pointer}
+
+.btns .btn.sm.sec{background:var(--card);box-shadow:var(--shadow)}
