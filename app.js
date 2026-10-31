@@ -304,7 +304,7 @@ function txRowHtml(t, opts = {}) {
     if (b && b.currencyId !== a?.currencyId) amt += ` → ${fmt(t.toSum, b.currencyId)}`;
   } else if (t.type === 'prepayment') {
     title = t.name || 'Prepayment'; sub = `Prepayment · ${esc(a?.name)} · ${fmt(prepayLeft(t), a?.currencyId)} left`; cls = 'pp'; amt = fmt(-t.sum, a?.currencyId); ic = '🅿'; dot = '#9333ea';
-  } else if (t.debtId) {
+  } else if (t.debtId && !t.noBal) {
     const d = S.debts.find(x => x.id === t.debtId);
     const adj = t.debtId === 'adjust';
     title = t.name || (adj ? 'Balance adjustment' : d ? d.name : 'Debt'); sub = `${adj ? 'Balance adjustment' : 'Debt'} · ${esc(a?.name)}`; cls = t.type === 'income' ? 'inc' : 'exp'; amt = fmt(t.type === 'income' ? t.sum : -t.sum, a?.currencyId, true); ic = adj ? '⚖' : '🤝'; dot = adj ? '#64748b' : '#9333ea';
@@ -312,7 +312,7 @@ function txRowHtml(t, opts = {}) {
     const cc = cat(t.categoryId);
     const cp = cc ? catPath(cc.id) : '—';
     title = S.settings.catAbove ? cp : (t.name || cp);
-    sub = (S.settings.catAbove ? (t.name ? esc(t.name) + ' · ' : '') : (t.name ? esc(cp) + ' · ' : '')) + esc(t.prepayId ? 'Prepaid: ' + (prepay(t.prepayId)?.name || '') : a?.name) + (t.desc ? ' · ' + esc(t.desc) : '');
+    sub = (S.settings.catAbove ? (t.name ? esc(t.name) + ' · ' : '') : (t.name ? esc(cp) + ' · ' : '')) + esc(t.prepayId ? 'Prepaid: ' + (prepay(t.prepayId)?.name || '') : t.noBal ? '🧾 No account (debt)' : a?.name) + (t.desc ? ' · ' + esc(t.desc) : '');
     cls = t.type === 'income' ? 'inc' : 'exp'; amt = fmt(t.type === 'income' ? t.sum : -t.sum, a?.currencyId, true);
     if (t._parts) {
       const same = t._parts.every(x => acc(x.accountId)?.currencyId === a?.currencyId);
@@ -327,7 +327,7 @@ function txRowHtml(t, opts = {}) {
 function sumRangeBy(from, to) {
   const inc = new Map(), exp = new Map();
   S.tx.forEach(t => {
-    if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return;
+    if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || (t.debtId && !t.noBal)) return;
     addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum);
   });
   return { inc, exp };
@@ -335,8 +335,8 @@ function sumRangeBy(from, to) {
 function sumRange(from, to, accId) {
   let inc = 0, exp = 0;
   S.tx.forEach(t => {
-    if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return;
-    if (accId && t.accountId !== accId) return;
+    if (t.date < from || t.date >= to || t.type === 'transfer' || t.type === 'prepayment' || (t.debtId && !t.noBal)) return;
+    if (accId && (t.accountId !== accId || t.noBal)) return;
     const a = acc(t.accountId); if ((a?.currencyId || defCur().id) !== defCur().id) return; const v = t.sum;
     if (t.type === 'income') inc += v; else exp += v;
   });
@@ -388,7 +388,7 @@ function filteredTx(p, f) {
   return S.tx.filter(t => {
     if (t.date < a || t.date >= b) return false;
     if (f.type !== 'all' && t.type !== f.type) return false;
-    if (f.acc && t.accountId !== f.acc && t.toAccountId !== f.acc) return false;
+    if (f.acc && (t.noBal || (t.accountId !== f.acc && t.toAccountId !== f.acc))) return false;
     if (cats && !cats.has(t.categoryId)) return false;
     if (q && !((t.name || '') + ' ' + (t.desc || '') + ' ' + (t.categoryId ? catPath(t.categoryId) : '')).toLowerCase().includes(q)) return false;
     return true;
@@ -397,7 +397,7 @@ function filteredTx(p, f) {
 function viewHistory() {
   const f = U.hf; const list = filteredTx(U.ph, f);
   const inc = new Map(), exp = new Map();
-  list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum); });
+  list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || (t.debtId && !t.noBal)) return; addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum); });
   const PER = [['all', 'All time'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['year', 'This year'], ['lastyear', 'Last year'], ['custom', 'Custom dates']];
   const psel = U.ph.sel || (U.ph.kind === 'custom' ? 'custom' : 'all');
   let h = header('History') + '<div class="wrap">';
@@ -412,7 +412,7 @@ function viewHistory() {
   const groups = new Map();
   list.forEach(t => { const k = +startOfDay(t.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
   groups.forEach((arr, k) => {
-    const net = new Map(); arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || t.debtId) return; addBy(net, acc(t.accountId)?.currencyId, t.type === 'income' ? t.sum : -t.sum); });
+    const net = new Map(); arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || (t.debtId && !t.noBal)) return; addBy(net, acc(t.accountId)?.currencyId, t.type === 'income' ? t.sum : -t.sum); });
     h += `<div class="dayhead"><span>${dayLabel(k)}</span><span style="text-align:right">${fmtMulti(net, true)}</span></div><div class="card" style="padding:4px 14px">${collapse(arr).map(t => txRowHtml(t, { time: true })).join('')}</div>`;
   });
   const ft = f.type, showI = ft === 'all' || ft === 'income', showE = ft === 'all' || ft === 'expense';
@@ -472,7 +472,7 @@ function viewReports() {
   h += `<select data-a="racc" style="margin-bottom:12px"><option value="">All accounts</option>${S.accounts.map(x => `<option value="${x.id}" ${R.acc === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
   const rc = R.cur && cur(R.cur) ? R.cur : defCur().id; const fmtR = (n, sg) => fmt(n, rc, sg);
   h += `<select data-a="rcur" style="margin-bottom:12px">${S.currencies.map(x => `<option value="${x.id}" ${rc === x.id ? 'selected' : ''}>${esc(x.short)} ${esc(x.name || '')}</option>`).join('')}</select>`;
-  const base = S.tx.filter(t => t.type !== 'transfer' && t.type !== 'prepayment' && !t.debtId && (!R.acc || t.accountId === R.acc) && (acc(t.accountId)?.currencyId || defCur().id) === rc);
+  const base = S.tx.filter(t => t.type !== 'transfer' && t.type !== 'prepayment' && !(t.debtId && !t.noBal) && (!R.acc || (t.accountId === R.acc && !t.noBal)) && (acc(t.accountId)?.currencyId || defCur().id) === rc);
   const val = t => t.sum;
   if (R.type === 'pie-exp' || R.type === 'pie-inc') {
     const kind = R.type === 'pie-exp' ? 'expense' : 'income'; const map = new Map();
@@ -586,9 +586,9 @@ function budgetStatus(b) {
   if (b.kind === 'category') { ids = new Set((b.refs || []).flatMap(catDescendants)); }
   let spent = 0;
   S.tx.forEach(t => {
-    if (t.type !== 'expense' || t.debtId || t.date < a || t.date >= z) return;
+    if (t.type !== 'expense' || (t.debtId && !t.noBal) || t.date < a || t.date >= z) return;
     if (b.kind === 'category' && !ids.has(t.categoryId)) return;
-    if (b.kind === 'account' && !(b.refs || []).includes(t.accountId)) return;
+    if (b.kind === 'account' && (t.noBal || !(b.refs || []).includes(t.accountId))) return;
     if ((acc(t.accountId)?.currencyId || defCur().id) !== defCur().id) return;
     spent += t.sum;
   });
@@ -896,7 +896,7 @@ function accountChoices(t) {
     .forEach(p => list.push(['pp:' + p.id, `🅿 Prepayment: ${p.name || 'Unnamed'} (${fmt(prepayLeft(p, t._ex || t.id), acc(p.accountId)?.currencyId)} left)`]));
   return list;
 }
-const accTx = id => collapse(S.tx.filter(t => t.accountId === id || t.toAccountId === id).sort((x, y) => y.date - x.date));
+const accTx = id => collapse(S.tx.filter(t => !t.noBal && (t.accountId === id || t.toAccountId === id)).sort((x, y) => y.date - x.date));
 function editAccount(id) {
   const a = id ? acc(id) : null;
   if (!S.currencies.length) return openSetup(() => editAccount());
