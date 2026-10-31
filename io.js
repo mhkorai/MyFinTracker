@@ -49,7 +49,7 @@ function buildWorkbook() {
   t.id, t.accountId, t.toAccountId || '', t.categoryId || '', t.groupId || '', t.gi ?? '', t.prepayId || '', t.debtId === 'legacy' ? 'legacy-debt' : t.debtId === 'adjust' ? 'adjustment' : ''])],
     [11, 7, 11, 24, 28, 12, 9, 22, 12, 24, 28, 14, 14, 14, 14, 14, 8, 14, 12]);
   add('Debts', [['ID', 'Direction', 'Name', 'Account ID', 'Account', 'Amount', 'Date', 'Note'], ...S.debts.map(d => [d.id, d.dir, d.name, d.accountId, accName(d.accountId), d.amount, ymd(d.date), d.desc || ''])], [14, 10, 26, 14, 24, 12, 11, 28]);
-  add('Debt payments', [['ID', 'Debt ID', 'Date', 'Amount (+ repayment / - increase)', 'Account ID', 'Account'], ...S.debts.flatMap(d => (d.repayments || []).map(r => [r.id, d.id, ymd(r.date), r.sum, r.accountId, accName(r.accountId)]))], [14, 14, 11, 30, 14, 24]);
+  add('Debt payments', [['ID', 'Debt ID', 'Date', 'Amount (+ repayment / - increase)', 'Account ID', 'Account', 'Direct expense', 'Category ID'], ...S.debts.flatMap(d => (d.repayments || []).map(r => [r.id, d.id, ymd(r.date), r.sum, r.accountId, accName(r.accountId), r.direct ? 'Yes' : '', r.categoryId || '']))], [14, 14, 11, 30, 14, 24, 14, 14]);
   add('Budgets', [['ID', 'Name', 'Kind', 'Targets (IDs, separated by |)', 'Amount', 'Period', 'From', 'To'], ...S.budgets.map(b => [b.id, b.name, b.kind, (b.refs || []).join('|'), b.amount, b.period, b.from ? ymd(b.from) : '', b.to ? ymd(b.to) : ''])], [14, 24, 10, 34, 12, 10, 11, 11]);
   add('Planned', [['ID', 'Date', 'Type', 'Account ID', 'To account ID', 'Category ID', 'Amount', 'To amount', 'Name', 'Note', 'Repeat'], ...S.planned.map(p => [p.id, ymd(p.date), p.type, p.accountId, p.toAccountId || '', p.categoryId || '', p.sum, p.toSum ?? '', p.name || '', p.desc || '', p.repeat || 'none'])], [14, 11, 10, 14, 14, 14, 12, 12, 24, 28, 10]);
   return wb;
@@ -110,7 +110,7 @@ function restoreFromWorkbook(wb) {
   });
   get('Debt payments').forEach(r => {
     const d = N.debts.find(x => x.id === String(col(r, 'Debt ID'))); const a = accById(col(r, 'Account ID')) || accByName(col(r, 'Account')); const date = parseDateCell(col(r, 'Date')); const sum = numOf(col(r, 'Amount (+ repayment / - increase)', 'Amount'), 0);
-    if (!d || !a || !sum || isNaN(date)) { skipped++; return; } d.repayments.push({ id: String(col(r, 'ID') || uid()), sum, accountId: a.id, date: +startOfDay(date) });
+    if (!d || !a || !sum || isNaN(date)) { skipped++; return; } d.repayments.push({ id: String(col(r, 'ID') || uid()), sum, accountId: a.id, date: +startOfDay(date), ...(/^y/i.test(String(col(r, 'Direct expense') || '')) ? { direct: true, categoryId: String(col(r, 'Category ID') || '') } : {}) });
   });
   get('Budgets').forEach(r => { const amount = numOf(col(r, 'Amount'), 0); if (!(amount > 0)) return; N.budgets.push({ id: String(col(r, 'ID') || uid()), name: String(col(r, 'Name')), kind: String(col(r, 'Kind') || 'overall'), refs: String(col(r, 'Targets (IDs, separated by |)')).split('|').filter(Boolean), amount, period: String(col(r, 'Period') || 'monthly'), from: col(r, 'From') ? parseDateCell(col(r, 'From')) : null, to: col(r, 'To') ? parseDateCell(col(r, 'To')) : null }); });
   get('Planned').forEach(r => {
