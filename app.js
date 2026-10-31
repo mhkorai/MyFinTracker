@@ -246,6 +246,19 @@ function confirmBox(msg, onYes, yesLabel = 'Delete') {
   $('#cyes').onclick = () => { closeSheet(); onYes(); };
 }
 
+// Ask whether a change should also move account balances. keep = apply change but offset opening balances so nothing else changes.
+function impactBox(msg, apply, opts = {}) {
+  const run = keep => {
+    if (keep && opts.alt) { opts.alt(); save(); render(); return; }
+    const before = balances(); apply();
+    if (keep) { const after = balances(); S.accounts.forEach(a => { const d = (before[a.id] || 0) - (after[a.id] || 0); if (Math.abs(d) > 1e-9) a.opening = Math.round(((a.opening || 0) + d) * 1e6) / 1e6; }); }
+    save(); render();
+  };
+  sheet(`<h2>${esc(msg)}</h2><p class="muted" style="margin:0 0 12px">${esc(opts.hint || 'Should your account balances change too?')}</p><div class="btns"><button class="btn" id="imp1">${esc(opts.yes || 'Yes, update account balances')}</button></div><div class="btns"><button class="btn sec" id="imp0">${esc(opts.no || 'No, keep balances as they are')}</button></div><div class="btns"><button class="btn sec" data-a="close">Cancel</button></div>`);
+  $('#imp1').onclick = () => { closeSheet(); run(false); };
+  $('#imp0').onclick = () => { closeSheet(); run(true); };
+}
+
 // ───────────────────────── rendering ─────────────────────────
 function applyTheme() {
   document.documentElement.dataset.theme = S.settings.theme || 'auto';
@@ -806,10 +819,7 @@ function openTx(init = {}, mode = 'tx') {
       $$('[data-pf=sum]').forEach(el => el.oninput = () => { sync(); const tt = $('#splitTotal'); if (tt) tt.textContent = splitTotal(); });
       wireNameSuggest(t);
       if (!isEdit && !t.sum && !t.name) setTimeout(() => ($('#t_name') || $('#t_sum'))?.focus(), 80);
-      if ($('#t_del')) $('#t_del').onclick = () => (mode === 'tx' && init.type === 'prepayment' && prepayUsed(init.id) > 0) ? toast('Delete the expenses paid from this prepayment first') : confirmBox('Delete this ' + (mode === 'planned' ? 'planned operation' : 'transaction') + '?', () => {
-        if (mode === 'planned') S.planned = S.planned.filter(x => x.id !== init.id); else S.tx = S.tx.filter(x => !exSet.has(x.id));
-        save(); render();
-      });
+      if ($('#t_del')) $('#t_del').onclick = () => (mode === 'tx' && init.type === 'prepayment' && prepayUsed(init.id) > 0) ? toast('Delete the expenses paid from this prepayment first') : (mode === 'planned' ? confirmBox('Delete this planned operation?', () => { S.planned = S.planned.filter(x => x.id !== init.id); save(); render(); }) : impactBox('Delete this transaction?', () => { S.tx = S.tx.filter(x => !exSet.has(x.id)); }, { hint: 'Deleting it normally puts the amount back into the account (and removes it from income/expense totals of the account). Keep the balance as it is?', yes: 'Delete and update account balance', no: 'Delete only – leave balances unchanged' }));
       $('#txf').onsubmit = e => {
         e.preventDefault(); sync();
         if (t.split && t.type === 'expense') return saveSplit();
@@ -895,14 +905,19 @@ function editAccount(id) {
     { k: 'type', label: 'Type', type: 'select', value: a ? accType(a) : 'account', options: ACC_TYPES },
     ...((S.groups || []).length ? [{ k: 'group', label: 'Group', type: 'select', value: a?.groupId || '', options: [['', '— none —'], ...S.groups.map(g => [g.id, g.name])] }] : []),
     { k: 'cur', label: 'Currency', type: 'select', value: a?.currencyId || S.settings.defCur, options: S.currencies.map(c => [c.id, c.short + ' – ' + (c.name || '')]) },
-    { k: 'open', label: a ? 'Opening balance (your balance as imported / before new entries)' : 'Current balance', type: 'number', value: a?.opening ?? 0 },
+    { k: 'open', label: 'Current balance', type: 'number', value: a ? Math.round((balances()[a.id] || 0) * 100) / 100 : 0 },
     { k: 'active', label: 'Active', type: 'checkbox', value: a ? a.active !== false : true },
     { k: 'def', label: 'Use as default account', type: 'checkbox', value: !!a?.isDefault }], v => {
       if (!v.name) return 'Enter a name';
       if (v.def) S.accounts.forEach(x => x.isDefault = false);
-      const rec = { type: v.type, name: v.name, icon: v.icon, currencyId: v.cur, opening: v.open || 0, active: v.active, isDefault: v.def };
+      const rec = { type: v.type, name: v.name, icon: v.icon, currencyId: v.cur, active: v.active, isDefault: v.def };
       if (v.group) rec.groupId = v.group; else if (a) delete a.groupId;
-      if (a) Object.assign(a, rec); else S.accounts.push({ id: uid(), ...rec });
+      if (!a) { S.accounts.push({ id: uid(), ...rec, opening: v.open || 0 }); return; }
+      Object.assign(a, rec);
+      const cb = balances()[a.id] || 0, nb = v.open ?? 0, diff = Math.round((nb - cb) * 100) / 100;
+      if (diff !== 0) setTimeout(() => impactBox('Change balance of ' + a.name + ' to ' + fmt(nb, a.currencyId) + '?', () => {
+        S.tx.push({ id: uid(), type: diff > 0 ? 'income' : 'expense', accountId: a.id, categoryId: '', sum: Math.abs(diff), name: 'Balance adjustment', desc: 'Balance adjustment', date: Date.now() });
+      }, { alt: () => { a.opening = Math.round(((a.opening || 0) + diff) * 1e6) / 1e6; }, hint: 'Choose how to apply it.', yes: 'Record an adjustment transaction', no: 'Just set the balance (no transaction, nothing else changes)' }), 0);
     }, a ? { extraHtml: `<div class="card" style="margin:14px 0 0"><button type="button" class="acctx" data-acctx>Transactions (${accTx(a.id).length}) <span>▾</span></button><div id="acctxlist" hidden></div></div>`, after: () => { const bt = $('[data-acctx]'); if (bt) bt.onclick = () => { const l = $('#acctxlist'); if (l.hidden && !l.dataset.done) { const list = accTx(a.id); l.innerHTML = list.length ? list.map(t => txRowHtml(t, { time: true })).join('') : emptyMsg('No transactions for this account.'); l.dataset.done = 1; } l.hidden = !l.hidden; bt.querySelector('span').textContent = l.hidden ? '▾' : '▴'; }; }, onDelete: () => { const used = S.tx.some(t => t.accountId === a.id || t.toAccountId === a.id); if (used) { a.active = false; toast('Account has transactions – marked inactive'); } else S.accounts = S.accounts.filter(x => x.id !== a.id); }, delMsg: 'Delete this account? (If it has transactions it will be hidden instead.)' } : {});
 }
 function editGroup(id) {
@@ -982,9 +997,9 @@ function editDebt(id) {
       { k: 'acc', label: 'Account', type: 'select', value: d?.accountId || S.accounts[0].id, options: accOptions(d?.accountId) },
       { k: 'date', label: 'Date', type: 'date', value: ymd(d?.date || Date.now()) }, { k: 'desc', label: 'Note', value: d?.desc || '' }], v => {
         if (!v.name) return 'Enter a name'; if (!(v.amount > 0)) return 'Enter a number greater than zero';
-        if (d) { Object.assign(d, { dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc }); syncDebtTx(d); }
+        if (d) { const chg = { dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc }; if (chg.amount === d.amount && chg.accountId === d.accountId && chg.dir === d.dir) { Object.assign(d, chg); syncDebtTx(d); } else setTimeout(() => impactBox('Save changes to this debt?', () => { Object.assign(d, chg); syncDebtTx(d); }), 0); }
         else { const nd = { id: uid(), dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc, repayments: [] }; S.debts.push(nd); syncDebtTx(nd); }
-      }, d ? { onDelete: () => { S.tx = S.tx.filter(t => t.debtId !== d.id); S.debts = S.debts.filter(x => x.id !== d.id); U.stack = U.stack.filter(p => p.name !== 'debt'); }, delMsg: 'Delete this debt and all related operations?' } : {});
+      }, d ? { onDelete: () => { U.stack = U.stack.filter(p => p.name !== 'debt'); S.debts = S.debts.filter(x => x.id !== d.id); setTimeout(() => impactBox('Delete this debt?', () => { S.tx = S.tx.filter(t => t.debtId !== d.id); }, { hint: 'Its payments are also removed from your accounts. Keep account balances as they are?', yes: 'Delete and update account balances', no: 'Delete only – leave balances unchanged' }), 0); }, delMsg: 'Delete this debt and all related operations?' } : {});
   });
 }
 function syncDebtTx(d) {
@@ -1000,8 +1015,9 @@ function editRepay(debtId, repId, increase) {
     { k: 'acc', label: 'Account', type: 'select', value: r?.accountId || d.accountId, options: accOptions(r?.accountId) }, { k: 'date', label: 'Date', type: 'date', value: ymd(r?.date || Date.now()) }], v => {
       if (!(v.sum > 0)) return 'Enter a number greater than zero';
       const rec = { sum: inc ? -v.sum : v.sum, accountId: v.acc, date: v.date };
-      if (r) Object.assign(r, rec); else d.repayments.push({ id: uid(), ...rec }); syncDebtTx(d);
-    }, r ? { onDelete: () => { d.repayments = d.repayments.filter(x => x.id !== r.id); syncDebtTx(d); }, delMsg: 'Delete this entry?' } : {});
+      if (r) { setTimeout(() => impactBox('Save changes to this entry?', () => { Object.assign(r, rec); syncDebtTx(d); }), 0); return; }
+      d.repayments.push({ id: uid(), ...rec }); syncDebtTx(d);
+    }, r ? { onDelete: () => { setTimeout(() => impactBox('Delete this entry?', () => { d.repayments = d.repayments.filter(x => x.id !== r.id); syncDebtTx(d); }), 0); }, delMsg: 'Delete this entry?' } : {});
 }
 
 // ───────────────────────── data import / export ─────────────────────────
