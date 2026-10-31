@@ -630,8 +630,8 @@ function pgDebt(id) {
   const a = acc(d.accountId); const lend = d.dir === 'lend'; const sd = debtSide(d);
   const title = sd === 'zero' && woSum(d) ? 'Written off' : { owes: 'Owes you', owe: 'You owe', both: 'Owes you / you owe', zero: 'Settled' }[sd];
   return header(d.name, { back: 1, right: `<button class="icon-btn" data-a="editdebt" data-v="${d.id}">✎</button>` }) + `<div class="wrap"><div class="card"><h3>${title}</h3><div class="big" style="font-size:1.5em">${debtLines(d)}</div>
-  <div class="mut" style="font-size:.85em">Started: ${lend ? 'you lent' : 'you borrowed'} ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div><div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">${lend ? 'They paid me back' : 'I paid back'}</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">${lend ? 'I lent more' : 'I borrowed more'}</button></div><div class="btns"><button class="btn sec" data-a="writeoff" data-v="${d.id}">✂ Write off</button></div>${woSum(d) ? `<div class="mut" style="font-size:.85em;margin-top:8px">Total written off: <b>${fmt(woSum(d), a?.currencyId)}</b></div>` : ''}</div>
-  <div class="card"><h3>History</h3>${(d.repayments || []).length ? [...d.repayments].sort((x, y) => y.date - x.date).map(r => `<div class="row tap" data-a="editrepay" data-v="${d.id}" data-arg="${r.id}"><div class="grow"><div class="t">${r.writeoff ? '✂ Written off' : r.sum < 0 ? 'Increase' : 'Repayment'}</div><div class="s">${ymd(r.date)} · ${r.writeoff ? (r.note ? esc(r.note) : 'No account affected') : r.direct ? '🧾 Expensed directly' + (r.categoryId && cat(r.categoryId) ? ' · ' + esc(cat(r.categoryId).name) : '') : esc(acc(r.accountId)?.name)}</div></div><div class="amt">${fmt(Math.abs(r.sum), acc(r.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('No repayments yet')}</div></div>`;
+  <div class="mut" style="font-size:.85em">Started: ${lend ? 'you lent' : 'you borrowed'} ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div><div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">${lend ? 'They paid me back' : 'I paid back'}</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">${lend ? 'I lent more' : 'I borrowed more'}</button></div><div class="btns"><button class="btn sec" data-a="debtexp" data-v="${d.id}">🧾 Expense</button><button class="btn sec" data-a="writeoff" data-v="${d.id}">✂ Write off</button></div>${woSum(d) ? `<div class="mut" style="font-size:.85em;margin-top:8px">Total written off: <b>${fmt(woSum(d), a?.currencyId)}</b></div>` : ''}</div>
+  <div class="card"><h3>History</h3>${(d.repayments || []).length ? [...d.repayments].sort((x, y) => y.date - x.date).map(r => `<div class="row tap" data-a="editrepay" data-v="${d.id}" data-arg="${r.id}"><div class="grow"><div class="t">${r.writeoff ? '✂ Written off' : r.direct ? '🧾 Expense' : r.sum < 0 ? 'Increase' : 'Repayment'}</div><div class="s">${ymd(r.date)} · ${r.writeoff ? (r.note ? esc(r.note) : 'No account affected') : r.direct ? (r.note ? esc(r.note) + ' · ' : '') + '🧾 Expense, no account' + (r.categoryId && cat(r.categoryId) ? ' · ' + esc(cat(r.categoryId).name) : '') : esc(acc(r.accountId)?.name)}</div></div><div class="amt">${fmt(Math.abs(r.sum), acc(r.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('No repayments yet')}</div></div>`;
 }
 function pgPrepayments() {
   const list = prepayList().sort((a, b) => b.date - a.date);
@@ -1009,6 +1009,19 @@ function syncDebtTx(d) {
   S.tx.push({ id: uid(), debtId: d.id, type: out ? 'expense' : 'income', accountId: d.accountId, categoryId: '', sum: d.amount, name: d.name, desc: d.desc || 'Debt', date: d.date + 12 * 36e5 });
   (d.repayments || []).filter(r => !r.writeoff).forEach(r => S.tx.push({ id: uid(), debtId: d.id, repId: r.id, type: r.direct ? 'expense' : (r.sum > 0) === out ? 'income' : 'expense', accountId: r.accountId, categoryId: r.direct ? (r.categoryId || '') : '', noBal: r.direct ? true : undefined, sum: Math.abs(r.sum), name: d.name, desc: r.sum > 0 ? 'Repayment' : 'Increase', date: r.date + 12 * 36e5 }));
 }
+function editDebtExpense(debtId, repId) {
+  const d = S.debts.find(x => x.id === debtId); const r = repId ? d.repayments.find(x => x.id === repId) : null;
+  const left = Math.max(0, debtBy(d).get((cur(acc(d.accountId)?.currencyId) || defCur()).id) || 0);
+  form(r ? 'Edit expense' : 'Expense out (no account)', [
+    { k: 'sum', label: 'Amount (' + (cur(acc(d.accountId)?.currencyId)?.short || '') + ')', type: 'number', value: r ? r.sum : left || '' },
+    { k: 'cat', label: 'Expense category', type: 'select', value: r?.categoryId || '', options: [['', '— none —'], ...catOptions('expense')] },
+    { k: 'date', label: 'Date', type: 'date', value: ymd(r?.date || Date.now()) },
+    { k: 'note', label: 'Note (optional)', value: r?.note || '' }], v => {
+      if (!(v.sum > 0)) return 'Enter a number greater than zero';
+      const rec = { sum: v.sum, accountId: d.accountId, date: v.date, direct: true, categoryId: v.cat || '', note: v.note || '' };
+      if (r) Object.assign(r, rec); else d.repayments.push({ id: uid(), ...rec }); syncDebtTx(d);
+    }, { ok: 'Save', onDelete: r ? () => { d.repayments = d.repayments.filter(x => x.id !== r.id); syncDebtTx(d); } : null, delMsg: 'Delete this expense? The debt amount comes back. No account balance changes.' });
+}
 function editWriteoff(debtId, repId) {
   const d = S.debts.find(x => x.id === debtId); const r = repId ? d.repayments.find(x => x.id === repId) : null;
   const left = Math.max(0, debtBy(d).get((cur(acc(d.accountId)?.currencyId) || defCur()).id) || 0);
@@ -1025,12 +1038,10 @@ function editRepay(debtId, repId, increase) {
   const d = S.debts.find(x => x.id === debtId); const r = repId ? d.repayments.find(x => x.id === repId) : null; const inc = increase || (r && r.sum < 0);
   form(r ? 'Edit entry' : inc ? (d.dir === 'lend' ? 'I lent more' : 'I borrowed more') : (d.dir === 'lend' ? 'They paid me back' : 'I paid back'), [
     { k: 'sum', label: 'Amount', type: 'number', value: r ? Math.abs(r.sum) : Math.max(0, debtBy(d).get((cur(acc(d.accountId)?.currencyId) || defCur()).id) || 0) || '' },
-    { k: 'acc', label: 'Account', type: 'select', value: r?.direct ? '__direct' : (r?.accountId || d.accountId), options: [...(inc ? [] : [['__direct', '🧾 No account – record directly as an expense']]), ...accOptions(r?.accountId)] },
-    ...(inc ? [] : [{ k: 'cat', label: 'Expense category (only if recorded directly as an expense)', type: 'select', value: r?.categoryId || '', options: [['', '— none —'], ...catOptions('expense')] }]),
+    { k: 'acc', label: 'Account', type: 'select', value: r?.accountId || d.accountId, options: accOptions(r?.accountId) },
     { k: 'date', label: 'Date', type: 'date', value: ymd(r?.date || Date.now()) }], v => {
       if (!(v.sum > 0)) return 'Enter a number greater than zero';
-      const direct = v.acc === '__direct';
-      const rec = { sum: inc ? -v.sum : v.sum, accountId: direct ? d.accountId : v.acc, date: v.date, direct: direct || undefined, categoryId: direct ? (v.cat || '') : undefined };
+      const rec = { sum: inc ? -v.sum : v.sum, accountId: v.acc, date: v.date };
       if (r) { setTimeout(() => impactBox('Save changes to this entry?', () => { Object.assign(r, rec); syncDebtTx(d); }), 0); return; }
       d.repayments.push({ id: uid(), ...rec }); syncDebtTx(d);
     }, r ? { onDelete: () => { setTimeout(() => impactBox('Delete this entry?', () => { d.repayments = d.repayments.filter(x => x.id !== r.id); syncDebtTx(d); }), 0); }, delMsg: 'Delete this entry?' } : {});
@@ -1112,7 +1123,7 @@ const actions = {
   cattoggle: v => { const o = U.catOpen || (U.catOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editacc: v => editAccount(v), editcat: (v, el) => editCategory(v, el.dataset.t), cattype: v => { U.catType = v; render(); },
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
-  writeoff: v => editWriteoff(v), addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => { const dd = S.debts.find(x => x.id === v); const rr = dd && dd.repayments.find(x => x.id === el.dataset.arg); if (rr && rr.writeoff) editWriteoff(v, rr.id); else editRepay(v, el.dataset.arg); },
+  writeoff: v => editWriteoff(v), debtexp: v => editDebtExpense(v), addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => { const dd = S.debts.find(x => x.id === v); const rr = dd && dd.repayments.find(x => x.id === el.dataset.arg); if (rr && rr.writeoff) editWriteoff(v, rr.id); else if (rr && rr.direct) editDebtExpense(v, rr.id); else editRepay(v, el.dataset.arg); },
   menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   eye: () => { U.hide = !U.hide; render(); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
