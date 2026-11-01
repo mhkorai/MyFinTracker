@@ -1204,8 +1204,8 @@ function debtIcs(id) {
     'SUMMARY:' + (lend ? '💰 Repayment due – ' : '💸 Payment due – ') + d.name, 'DESCRIPTION:' + txt.replace(/,/g, '\\,'),
     'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Debt reminder', 'TRIGGER:PT0M', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Debt reminder', 'TRIGGER:-PT1H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
   U.ics = { name: 'debt-reminder-' + d.name.replace(/[^\w]+/g, '_') + '.ics', ics, txt, when: ymd(d.dueAt) + ' ' + hm(d.dueAt), title: (lend ? 'Repayment due – ' : 'Payment due – ') + d.name };
-  sheet(`<button class="x" data-a="close">✕</button><h2>📅 Add to iPhone Calendar</h2><p class="muted" style="margin:0 0 10px">Tap the first button. Safari opens and asks to <b>Add</b> the event (alerts at the due time and 1 hour before).</p>
-    <div class="btns"><a class="btn" id="icsopen" target="_blank" rel="noopener" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" style="text-decoration:none;text-align:center">Open in Calendar</a></div>
+  sheet(`<button class="x" data-a="close">✕</button><h2>📅 Add to iPhone Calendar</h2><p class="muted" style="margin:0 0 10px">Tap the first button. A page opens and asks to <b>Add</b> the event (alerts at the due time and 1 hour before).</p>
+    <div class="btns"><a class="btn" id="icsopen" target="_blank" rel="noopener" href="${new URL('cal.html', location.href).href}?t=${encodeURIComponent(U.ics.title)}&s=${d.dueAt}&d=${encodeURIComponent(txt)}&u=${d.id}" style="text-decoration:none;text-align:center">Open in Calendar</a></div>
     <div class="btns"><button class="btn sec" id="icsfile">Save .ics file instead</button></div>
     <p class="muted" style="margin:12px 0 4px">If it doesn't work, create the event yourself in Calendar:</p>
     <div class="card" style="margin:0"><div class="t">${esc(U.ics.title)}</div><div class="s">${esc(U.ics.when)}</div><div class="s">${esc(txt)}</div></div>

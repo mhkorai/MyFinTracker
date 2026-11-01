@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Add to Calendar</title>
+<style>body{font:17px -apple-system,system-ui,sans-serif;padding:28px;text-align:center;color:#111}a{display:inline-block;margin-top:18px;padding:14px 22px;background:#0f766e;color:#fff;border-radius:12px;text-decoration:none;font-weight:600}</style></head>
+<body><h2>📅 Adding reminder…</h2><p id="m">Preparing your calendar event.</p><a id="go" href="reminder.ics" hidden>Add to Calendar</a>
+<script>
+(async()=>{const q=location.search,go=document.getElementById('go');go.href='reminder.ics'+q;
+try{const r=await navigator.serviceWorker.register('sw.js');await navigator.serviceWorker.ready;
+ if(!navigator.serviceWorker.controller){await new Promise(res=>{navigator.serviceWorker.addEventListener('controllerchange',res);setTimeout(res,2500)})}
+ location.replace('reminder.ics'+q);setTimeout(()=>{document.getElementById('m').textContent='If nothing happened, tap the button.';go.hidden=false},2500)}
+catch(e){document.getElementById('m').textContent='Tap the button to add the event.';go.hidden=false}})();
+</script></body></html>
