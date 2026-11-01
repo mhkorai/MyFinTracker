@@ -1203,7 +1203,15 @@ function debtIcs(id) {
   const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MyFinTracker//EN', 'BEGIN:VEVENT', 'UID:' + d.id + '@myfintracker', 'DTSTAMP:' + z(Date.now()), 'DTSTART:' + z(d.dueAt), 'DTEND:' + z(d.dueAt + 36e5),
     'SUMMARY:' + (lend ? '💰 Repayment due – ' : '💸 Payment due – ') + d.name, 'DESCRIPTION:' + txt.replace(/,/g, '\\,'),
     'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Debt reminder', 'TRIGGER:PT0M', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Debt reminder', 'TRIGGER:-PT1H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
-  download('debt-reminder-' + d.name.replace(/[^\w]+/g, '_') + '.ics', ics, 'text/calendar');
+  U.ics = { name: 'debt-reminder-' + d.name.replace(/[^\w]+/g, '_') + '.ics', ics, txt, when: ymd(d.dueAt) + ' ' + hm(d.dueAt), title: (lend ? 'Repayment due – ' : 'Payment due – ') + d.name };
+  sheet(`<button class="x" data-a="close">✕</button><h2>📅 Add to iPhone Calendar</h2><p class="muted" style="margin:0 0 10px">Tap the first button. Safari opens and asks to <b>Add</b> the event (alerts at the due time and 1 hour before).</p>
+    <div class="btns"><a class="btn" id="icsopen" target="_blank" rel="noopener" href="data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}" style="text-decoration:none;text-align:center">Open in Calendar</a></div>
+    <div class="btns"><button class="btn sec" id="icsfile">Save .ics file instead</button></div>
+    <p class="muted" style="margin:12px 0 4px">If it doesn't work, create the event yourself in Calendar:</p>
+    <div class="card" style="margin:0"><div class="t">${esc(U.ics.title)}</div><div class="s">${esc(U.ics.when)}</div><div class="s">${esc(txt)}</div></div>
+    <div class="btns"><button class="btn sec" id="icscopy">Copy details</button></div>`);
+  $('#icsfile').onclick = () => download(U.ics.name, ics, 'text/calendar');
+  $('#icscopy').onclick = () => { const t = `${U.ics.title}\n${U.ics.when}\n${txt}`; (navigator.clipboard?.writeText(t) || Promise.reject()).then(() => toast('Copied'), () => toast('Could not copy')); };
 }
 let dueShownAt = 0, dueTimer = 0;
 function checkDue(force) {
