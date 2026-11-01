@@ -48,7 +48,7 @@ function buildWorkbook() {
   ...tx.map(t => [ymd(t.date), hm(t.date), t.type, accName(t.accountId), t.categoryId ? catPath(t.categoryId) : '', t.sum, cur(acc(t.accountId)?.currencyId)?.short || '', accName(t.toAccountId), t.type === 'transfer' ? (t.toSum ?? t.sum) : '', t.name || '', t.desc || '',
   t.id, t.accountId, t.toAccountId || '', t.categoryId || '', t.groupId || '', t.gi ?? '', t.prepayId || '', t.debtId === 'legacy' ? 'legacy-debt' : t.debtId === 'adjust' ? 'adjustment' : ''])],
     [11, 7, 11, 24, 28, 12, 9, 22, 12, 24, 28, 14, 14, 14, 14, 14, 8, 14, 12]);
-  add('Debts', [['ID', 'Direction', 'Name', 'Account ID', 'Account', 'Amount', 'Date', 'Note'], ...S.debts.map(d => [d.id, d.dir, d.name, d.accountId, accName(d.accountId), d.amount, ymd(d.date), d.desc || ''])], [14, 10, 26, 14, 24, 12, 11, 28]);
+  add('Debts', [['ID', 'Direction', 'Name', 'Account ID', 'Account', 'Amount', 'Date', 'Note', 'Expected repayment'], ...S.debts.map(d => [d.id, d.dir, d.name, d.accountId, accName(d.accountId), d.amount, ymd(d.date), d.desc || '', d.dueAt ? ymd(d.dueAt) + ' ' + hm(d.dueAt) : ''])], [14, 10, 26, 14, 24, 12, 11, 28, 18]);
   add('Debt payments', [['ID', 'Debt ID', 'Date', 'Amount (+ repayment / - increase)', 'Account ID', 'Account', 'Direct expense', 'Category ID', 'Write-off', 'Note'], ...S.debts.flatMap(d => (d.repayments || []).map(r => [r.id, d.id, ymd(r.date), r.sum, r.accountId, accName(r.accountId), r.direct ? 'Yes' : '', r.categoryId || '', r.writeoff ? 'Yes' : '', r.note || '']))], [14, 14, 11, 30, 14, 24, 14, 14, 10, 24]);
   add('Budgets', [['ID', 'Name', 'Kind', 'Targets (IDs, separated by |)', 'Amount', 'Period', 'From', 'To'], ...S.budgets.map(b => [b.id, b.name, b.kind, (b.refs || []).join('|'), b.amount, b.period, b.from ? ymd(b.from) : '', b.to ? ymd(b.to) : ''])], [14, 24, 10, 34, 12, 10, 11, 11]);
   add('Planned', [['ID', 'Date', 'Type', 'Account ID', 'To account ID', 'Category ID', 'Amount', 'To amount', 'Name', 'Note', 'Repeat'], ...S.planned.map(p => [p.id, ymd(p.date), p.type, p.accountId, p.toAccountId || '', p.categoryId || '', p.sum, p.toSum ?? '', p.name || '', p.desc || '', p.repeat || 'none'])], [14, 11, 10, 14, 14, 14, 12, 12, 24, 28, 10]);
@@ -106,7 +106,7 @@ function restoreFromWorkbook(wb) {
   get('Debts').forEach(r => {
     const a = accById(col(r, 'Account ID')) || accByName(col(r, 'Account')); const date = parseDateCell(col(r, 'Date')); const amount = Math.abs(numOf(col(r, 'Amount'), 0));
     if (!a || !(amount > 0) || isNaN(date)) { skipped++; return; }
-    N.debts.push({ id: String(col(r, 'ID') || uid()), dir: /borrow/i.test(col(r, 'Direction')) ? 'borrow' : 'lend', name: String(col(r, 'Name')), amount, accountId: a.id, date: +startOfDay(date), desc: String(col(r, 'Note')), repayments: [] });
+    N.debts.push({ id: String(col(r, 'ID') || uid()), dir: /borrow/i.test(col(r, 'Direction')) ? 'borrow' : 'lend', name: String(col(r, 'Name')), amount, accountId: a.id, date: +startOfDay(date), desc: String(col(r, 'Note')), ...(() => { const q = String(col(r, 'Expected repayment') || '').trim(); const t = q ? +new Date(q.replace(' ', 'T')) : NaN; return isNaN(t) ? {} : { dueAt: t }; })(), repayments: [] });
   });
   get('Debt payments').forEach(r => {
     const d = N.debts.find(x => x.id === String(col(r, 'Debt ID'))); const a = accById(col(r, 'Account ID')) || accByName(col(r, 'Account')); const date = parseDateCell(col(r, 'Date')); const sum = numOf(col(r, 'Amount (+ repayment / - increase)', 'Amount'), 0);

@@ -623,14 +623,14 @@ function pgDebts() {
   const side = { owes: ['Owes you', 'var(--inc)', '↗'], owe: ['You owe', 'var(--exp)', '↙'], both: ['Owes you / you owe', 'var(--tr)', '⇄'], zero: ['Settled', 'var(--muted)', '✓'] };
   return header('Debts', { back: 1, right: `<button class="icon-btn" data-a="editdebt">+</button>` }) + `<div class="wrap"><div class="card"><div class="sum3" style="margin:0"><div><small>Owed to you</small><b class="inc">${fmtMulti(owedToMe)}</b></div><div><small>You owe</small><b class="exp">${fmtMulti(iOwe)}</b></div></div></div>
   <label class="chk"><input type="checkbox" data-a="hidezero" ${U.hideZero ? 'checked' : ''}> Hide debts with zero balance</label>
-  <div class="card">${list.length ? list.map(d => { const sd = side[debtSide(d)].slice(); if (debtSide(d) === 'zero' && woSum(d)) { sd[0] = 'Written off'; sd[2] = '✂'; } return `<div class="row tap" data-a="go" data-v="debt" data-arg="${d.id}"><div class="dot" style="background:${sd[1]}">${sd[2]}</div><div class="grow"><div class="t">${esc(d.name)}</div><div class="s">${sd[0]} · ${ymd(d.date)}</div></div><div class="amt" style="text-align:right">${debtLines(d)}</div></div>`; }).join('') : emptyMsg('Here you can store and manage information about debts')}</div></div>`;
+  <div class="card">${list.length ? list.map(d => { const sd = side[debtSide(d)].slice(); if (debtSide(d) === 'zero' && woSum(d)) { sd[0] = 'Written off'; sd[2] = '✂'; } return `<div class="row tap" data-a="go" data-v="debt" data-arg="${d.id}"><div class="dot" style="background:${sd[1]}">${sd[2]}</div><div class="grow"><div class="t">${esc(d.name)}</div><div class="s">${sd[0]} · ${ymd(d.date)}${d.dueAt && debtOpen(d) ? ` · <span style="${d.dueAt <= Date.now() ? 'color:var(--exp);font-weight:600' : ''}">⏰ ${ymd(d.dueAt)}</span>` : ''}</div></div><div class="amt" style="text-align:right">${debtLines(d)}</div></div>`; }).join('') : emptyMsg('Here you can store and manage information about debts')}</div></div>`;
 }
 function pgDebt(id) {
   const d = S.debts.find(x => x.id === id); if (!d) { U.stack.pop(); return viewMore(); }
   const a = acc(d.accountId); const lend = d.dir === 'lend'; const sd = debtSide(d);
   const title = sd === 'zero' && woSum(d) ? 'Written off' : { owes: 'Owes you', owe: 'You owe', both: 'Owes you / you owe', zero: 'Settled' }[sd];
   return header(d.name, { back: 1, right: `<button class="icon-btn" data-a="editdebt" data-v="${d.id}">✎</button>` }) + `<div class="wrap"><div class="card"><h3>${title}</h3><div class="big" style="font-size:1.5em">${debtLines(d)}</div>
-  <div class="mut" style="font-size:.85em">Started: ${lend ? 'you lent' : 'you borrowed'} ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div><div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">${lend ? 'They paid me back' : 'I paid back'}</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">${lend ? 'I lent more' : 'I borrowed more'}</button></div><div class="btns"><button class="btn sec" data-a="debtexp" data-v="${d.id}">🧾 Expense</button><button class="btn sec" data-a="writeoff" data-v="${d.id}">✂ Write off</button></div>${woSum(d) ? `<div class="mut" style="font-size:.85em;margin-top:8px">Total written off: <b>${fmt(woSum(d), a?.currencyId)}</b></div>` : ''}</div>
+  <div class="mut" style="font-size:.85em">Started: ${lend ? 'you lent' : 'you borrowed'} ${fmt(d.amount, a?.currencyId)} · ${ymd(d.date)}${d.desc ? ' · ' + esc(d.desc) : ''}</div>${d.dueAt ? `<div style="margin-top:6px;font-size:.9em;font-weight:600;color:${d.dueAt <= Date.now() && debtOpen(d) ? 'var(--exp)' : 'var(--text)'}">⏰ Expected repayment: ${ymd(d.dueAt)} ${hm(d.dueAt)}${d.dueAt <= Date.now() && debtOpen(d) ? ' · overdue' : ''}</div><div class="btns"><button class="btn sec" data-a="debtcal" data-v="${d.id}">📅 Add reminder to iPhone Calendar</button></div>${typeof Notification !== 'undefined' && Notification.permission !== 'granted' ? `<div class="btns"><button class="btn sec" data-a="debtnotif">🔔 Allow phone notifications</button></div>` : ''}` : ''}<div class="btns"><button class="btn" data-a="addrepay" data-v="${d.id}">${lend ? 'They paid me back' : 'I paid back'}</button><button class="btn sec" data-a="incdebt" data-v="${d.id}">${lend ? 'I lent more' : 'I borrowed more'}</button></div><div class="btns"><button class="btn sec" data-a="debtexp" data-v="${d.id}">🧾 Expense</button><button class="btn sec" data-a="writeoff" data-v="${d.id}">✂ Write off</button></div>${woSum(d) ? `<div class="mut" style="font-size:.85em;margin-top:8px">Total written off: <b>${fmt(woSum(d), a?.currencyId)}</b></div>` : ''}</div>
   <div class="card"><h3>History</h3>${(d.repayments || []).length ? [...d.repayments].sort((x, y) => y.date - x.date).map(r => `<div class="row tap" data-a="editrepay" data-v="${d.id}" data-arg="${r.id}"><div class="grow"><div class="t">${r.writeoff ? '✂ Written off' : r.direct ? '🧾 Expense' : r.sum < 0 ? 'Increase' : 'Repayment'}</div><div class="s">${ymd(r.date)} · ${r.writeoff ? (r.note ? esc(r.note) : 'No account affected') : r.direct ? (r.note ? esc(r.note) + ' · ' : '') + '🧾 Expense, no account' + (r.categoryId && cat(r.categoryId) ? ' · ' + esc(cat(r.categoryId).name) : '') : esc(acc(r.accountId)?.name)}</div></div><div class="amt">${fmt(Math.abs(r.sum), acc(r.accountId)?.currencyId)}</div></div>`).join('') : emptyMsg('No repayments yet')}</div></div>`;
 }
 function pgPrepayments() {
@@ -996,10 +996,10 @@ function editDebt(id) {
       { k: 'dir', label: 'Type', type: 'select', value: d?.dir || 'lend', options: [['lend', 'I lent money (owed to me)'], ['borrow', 'I borrowed money (I owe)']] },
       { k: 'name', label: 'Person / name', value: d?.name || '' }, { k: 'amount', label: 'Amount', type: 'number', value: d?.amount ?? '' },
       { k: 'acc', label: 'Account', type: 'select', value: d?.accountId || S.accounts[0].id, options: accOptions(d?.accountId) },
-      { k: 'date', label: 'Date', type: 'date', value: ymd(d?.date || Date.now()) }, { k: 'desc', label: 'Note', value: d?.desc || '' }], v => {
+      { k: 'date', label: 'Date', type: 'date', value: ymd(d?.date || Date.now()) }, { k: 'due', label: 'Expected repayment date & time (optional – you get a reminder)', type: 'datetime', value: d?.dueAt ? dtLocal(d.dueAt) : '' }, { k: 'desc', label: 'Note', value: d?.desc || '' }], v => {
         if (!v.name) return 'Enter a name'; if (!(v.amount > 0)) return 'Enter a number greater than zero';
-        if (d) { const chg = { dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc }; if (chg.amount === d.amount && chg.accountId === d.accountId && chg.dir === d.dir) { Object.assign(d, chg); syncDebtTx(d); } else setTimeout(() => impactBox('Save changes to this debt?', () => { Object.assign(d, chg); syncDebtTx(d); }), 0); }
-        else { const nd = { id: uid(), dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc, repayments: [] }; S.debts.push(nd); syncDebtTx(nd); }
+        if (d) { const chg = { dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc, dueAt: v.due || undefined }; if ((chg.dueAt || 0) !== (d.dueAt || 0)) d.remShown = 0; if (chg.amount === d.amount && chg.accountId === d.accountId && chg.dir === d.dir) { Object.assign(d, chg); syncDebtTx(d); } else setTimeout(() => impactBox('Save changes to this debt?', () => { Object.assign(d, chg); syncDebtTx(d); }), 0); }
+        else { const nd = { id: uid(), dir: v.dir, name: v.name, amount: v.amount, accountId: v.acc, date: v.date, desc: v.desc, dueAt: v.due || undefined, repayments: [] }; S.debts.push(nd); syncDebtTx(nd); }
       }, d ? { onDelete: () => { U.stack = U.stack.filter(p => p.name !== 'debt'); S.debts = S.debts.filter(x => x.id !== d.id); setTimeout(() => impactBox('Delete this debt?', () => { S.tx = S.tx.filter(t => t.debtId !== d.id); }, { hint: 'Its payments are also removed from your accounts. Keep account balances as they are?', yes: 'Delete and update account balances', no: 'Delete only – leave balances unchanged' }), 0); }, delMsg: 'Delete this debt and all related operations?' } : {});
   });
 }
@@ -1123,7 +1123,7 @@ const actions = {
   cattoggle: v => { const o = U.catOpen || (U.catOpen = new Set()); o.has(v) ? o.delete(v) : o.add(v); render(); },
   editacc: v => editAccount(v), editcat: (v, el) => editCategory(v, el.dataset.t), cattype: v => { U.catType = v; render(); },
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
-  writeoff: v => editWriteoff(v), debtexp: v => editDebtExpense(v), addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => { const dd = S.debts.find(x => x.id === v); const rr = dd && dd.repayments.find(x => x.id === el.dataset.arg); if (rr && rr.writeoff) editWriteoff(v, rr.id); else if (rr && rr.direct) editDebtExpense(v, rr.id); else editRepay(v, el.dataset.arg); },
+  remgo: v => { closeSheet(); go('debt', v); }, debtcal: v => debtIcs(v), debtnotif: () => askNotif(), writeoff: v => editWriteoff(v), debtexp: v => editDebtExpense(v), addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => { const dd = S.debts.find(x => x.id === v); const rr = dd && dd.repayments.find(x => x.id === el.dataset.arg); if (rr && rr.writeoff) editWriteoff(v, rr.id); else if (rr && rr.direct) editDebtExpense(v, rr.id); else editRepay(v, el.dataset.arg); },
   menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   eye: () => { U.hide = !U.hide; render(); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
@@ -1185,6 +1185,42 @@ document.addEventListener('visibilitychange', () => {
 });
 addEventListener('pagehide', () => flush());
 
+// ───────────────────────── debt reminders ─────────────────────────
+const dueDebts = () => S.debts.filter(d => d.dueAt && d.dueAt <= Date.now() && debtOpen(d));
+function notify(title, body, tag) {
+  try { if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || !navigator.serviceWorker) return;
+    navigator.serviceWorker.ready.then(r => r.showNotification(title, { body, tag, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' })).catch(() => { }); } catch (e) { }
+}
+function askNotif() {
+  if (typeof Notification === 'undefined') return toast('Notifications need the app installed on the Home Screen (iOS 16.4+)');
+  Notification.requestPermission().then(p => { toast(p === 'granted' ? 'Phone notifications allowed' : 'Notifications not allowed'); render(); });
+}
+function debtIcs(id) {
+  const d = S.debts.find(x => x.id === id); if (!d || !d.dueAt) return;
+  const z = ms => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const a = acc(d.accountId); const lend = d.dir === 'lend';
+  const txt = `${lend ? 'Collect from' : 'Pay to'} ${d.name}: ${[...debtBy(d)].filter(([, v]) => Math.abs(v) > 0.005).map(([k, v]) => fmt(Math.abs(v), k)).join(', ') || fmt(d.amount, a?.currencyId)}`;
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MyFinTracker//EN', 'BEGIN:VEVENT', 'UID:' + d.id + '@myfintracker', 'DTSTAMP:' + z(Date.now()), 'DTSTART:' + z(d.dueAt), 'DTEND:' + z(d.dueAt + 36e5),
+    'SUMMARY:' + (lend ? '💰 Repayment due – ' : '💸 Payment due – ') + d.name, 'DESCRIPTION:' + txt.replace(/,/g, '\\,'),
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Debt reminder', 'TRIGGER:PT0M', 'END:VALARM', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Debt reminder', 'TRIGGER:-PT1H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  download('debt-reminder-' + d.name.replace(/[^\w]+/g, '_') + '.ics', ics, 'text/calendar');
+}
+let dueShownAt = 0, dueTimer = 0;
+function checkDue(force) {
+  clearTimeout(dueTimer);
+  const next = S.debts.filter(d => d.dueAt && d.dueAt > Date.now() && debtOpen(d)).map(d => d.dueAt).sort((x, y) => x - y)[0];
+  if (next && next - Date.now() < 2e9) dueTimer = setTimeout(() => checkDue(true), next - Date.now() + 500);
+  const list = dueDebts(); if (!list.length) return;
+  if (!force && Date.now() - dueShownAt < 3e5) return;
+  if ($('#sheet-root').innerHTML.trim()) { setTimeout(() => checkDue(force), 2500); return; }
+  dueShownAt = Date.now();
+  list.forEach(d => { d.remShown = (d.remShown || 0) + 1; notify(d.dir === 'lend' ? 'Repayment due' : 'Payment due', `${d.name} – expected ${ymd(d.dueAt)} ${hm(d.dueAt)}`, 'debt-' + d.id); });
+  save();
+  sheet(`<button class="x" data-a="close">✕</button><h2>⏰ Debt reminder</h2><p class="muted" style="margin:0 0 8px">Expected repayment date has arrived. This reminder keeps showing each time you open the app until the repayment is recorded.</p>` +
+    list.map(d => `<div class="row tap" data-a="remgo" data-v="${d.id}"><div class="dot" style="background:${d.dir === 'lend' ? 'var(--inc)' : 'var(--exp)'}">${d.dir === 'lend' ? '↗' : '↙'}</div><div class="grow"><div class="t">${esc(d.name)}</div><div class="s">${d.dir === 'lend' ? 'Owes you' : 'You owe'} · due ${ymd(d.dueAt)} ${hm(d.dueAt)}</div></div><div class="amt" style="text-align:right">${debtLines(d)}</div></div>`).join('') +
+    `<div class="btns"><button class="btn sec" data-a="close">Dismiss</button></div>`);
+}
+
 // ───────────────────────── boot ─────────────────────────
 (async function boot() {
   await load(); applyTheme(); render(); lockIfNeeded();
@@ -1195,6 +1231,8 @@ addEventListener('pagehide', () => flush());
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; location.reload(); } });
     navigator.serviceWorker.register('sw.js').then(r => { document.addEventListener('visibilitychange', () => { if (!document.hidden) r.update().catch(() => { }); }); }).catch(() => { });
   }
+  setTimeout(() => checkDue(true), 900);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => checkDue(false), 600); });
   window.__S = () => S;
 })();
 

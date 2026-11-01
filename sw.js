@@ -1,4 +1,4 @@
-const CACHE = 'expense-tracker-v44';
+const CACHE = 'expense-tracker-v45';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'io.js', 'sync.js', 'icons.js', 'xlsx.mini.min.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
@@ -25,3 +25,5 @@ self.addEventListener('fetch', e => {
     }
   })());
 });
+
+self.addEventListener('notificationclick', e => { e.notification.close(); e.waitUntil(self.clients.matchAll({ type: 'window' }).then(l => l.length ? l[0].focus() : self.clients.openWindow('./'))); });
