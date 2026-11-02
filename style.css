@@ -224,3 +224,20 @@ label.chk .mi{flex:none}
 .toolbar.stick{position:sticky;top:var(--hdrh,56px);z-index:4;background:var(--bg);margin:0 -16px 8px;padding:6px 16px;box-shadow:0 1px 0 var(--line)}
 .toolbar.tools .chipbtn{font-size:.82em;padding:7px 12px;box-shadow:none;border:1px solid var(--line)}
 .toolbar.tools .chipbtn.pri{border-color:var(--brand)}
+
+.fchips{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 10px;padding:2px 16px;scrollbar-width:none}
+.fchips::-webkit-scrollbar{display:none}
+.fchip{flex:none;position:relative;display:inline-block;margin:0;border:1.5px solid var(--line);border-radius:999px;background:var(--card);color:var(--text);font:inherit;font-size:.95em;padding:0;cursor:pointer}
+button.fchip{padding:9px 16px}
+.fchip select{width:auto;border:0;background-color:transparent;border-radius:999px;padding:9px 34px 9px 16px;font-size:.95em;color:inherit}
+.fchip.on{border-color:var(--brand);color:var(--brand);font-weight:600}
+.fchip.rst{border-color:var(--exp);color:var(--exp);font-weight:600}
+.hico{width:54px;height:36px;flex:none;display:grid;place-items:center}
+.hico svg{width:54px;height:54px;display:block;margin:-9px 0}
+.hico .dot{width:36px;height:36px}
+.hrow{gap:10px;padding:12px 0}
+.hrow .t{font-size:1.02em}
+.hrow .harr{color:var(--muted);flex:none;margin:0 -4px}
+.hamt{display:flex;flex-direction:column;line-height:1.35}
+.dayhead.c{justify-content:center;position:relative;text-align:center;padding:14px 4px 6px}
+.dayhead.c .dnet{position:absolute;right:4px;top:14px;font-size:.9em}

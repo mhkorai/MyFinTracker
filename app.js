@@ -295,6 +295,7 @@ function collapse(list) {
   });
   return out;
 }
+function hico(a) { if (!a) return '<div class="hico"></div>'; const ic = a.icon || '💵'; return ic.startsWith('svg:') ? `<div class="hico">${iconSvg(ic.slice(4))}</div>` : `<div class="hico"><div class="dot" style="background:var(--brand-l)">${ic}</div></div>`; }
 function txRowHtml(t, opts = {}) {
   const a = acc(t.accountId); const c = cur(a?.currencyId);
   let title, sub, amt, cls, dot, ic;
@@ -302,6 +303,7 @@ function txRowHtml(t, opts = {}) {
     const b = acc(t.toAccountId);
     title = t.name || 'Transfer'; sub = `${esc(a?.name)} → ${esc(b?.name)}`; cls = 'tr'; amt = fmt(t.sum, a?.currencyId); ic = '⇄'; dot = 'var(--tr)';
     if (b && b.currencyId !== a?.currencyId) amt += ` → ${fmt(t.toSum, b.currencyId)}`;
+    if (opts.hist) return `<div class="row tap hrow" data-a="edittx" data-v="${t.id}">${hico(a)}<span class="harr">›</span>${hico(b)}<div class="grow"><div class="t">${esc(title)}</div></div><div class="amt hamt"><span class="exp">${fmt(t.sum, a?.currencyId)}</span><span class="inc">${fmt(t.toSum ?? t.sum, (b || a)?.currencyId)}</span></div></div>`;
   } else if (t.type === 'prepayment') {
     title = t.name || 'Prepayment'; sub = `Prepayment · ${esc(a?.name)} · ${fmt(prepayLeft(t), a?.currencyId)} left`; cls = 'pp'; amt = fmt(-t.sum, a?.currencyId); ic = '🅿'; dot = '#9333ea';
   } else if (t.debtId && !t.noBal) {
@@ -320,6 +322,12 @@ function txRowHtml(t, opts = {}) {
       sub = (S.settings.catAbove ? (t.name ? esc(t.name) + ' · ' : '') : (t.name ? esc(cp) + ' · ' : '')) + '⑂ ' + esc(t._parts.map(x => x.prepayId ? 'Prepaid: ' + (prepay(x.prepayId)?.name || '') : acc(x.accountId)?.name).join(' + ')) + (t.desc ? ' · ' + esc(t.desc) : '');
     }
     ic = esc((cc?.name || '?').charAt(0).toUpperCase()); dot = color(catRoot(t.categoryId)?.id || t.categoryId);
+  }
+  if (opts.hist) {
+    const hsub = t._parts ? sub.replace(/^[^·]*· ?/, '') : [t.name, t.desc].filter(Boolean).map(esc).join(' · ');
+    const hcat = cat(t.categoryId); const htitle = t.debtId && !t.noBal ? title : (hcat ? catPath(hcat.id) : (t.name || '—'));
+    const hs = t.debtId && !t.noBal ? sub : (hcat ? hsub : (t.name ? esc(t.desc || '') : hsub));
+    return `<div class="row tap hrow" data-a="edittx" data-v="${t.id}">${a && !t.noBal ? hico(a) : `<div class="hico"><div class="dot" style="background:${dot}">${ic}</div></div>`}<div class="grow"><div class="t">${esc(htitle)}</div>${hs ? `<div class="s">${hs}</div>` : ''}</div><div class="amt ${cls}">${amt}</div></div>`;
   }
   return `<div class="row tap" data-a="edittx" data-v="${t.id}">${a ? iconDot(a.icon) : `<div class="dot" style="background:${dot}">${ic}</div>`}<div class="grow"><div class="t">${esc(title)}</div><div class="s">${sub}${opts.time ? ' · ' + hm(t.date) : ''}</div></div><div class="amt ${cls}">${amt}</div></div>`;
 }
@@ -400,20 +408,26 @@ function viewHistory() {
   list.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || (t.debtId && !t.noBal)) return; addBy(t.type === 'income' ? inc : exp, acc(t.accountId)?.currencyId, t.sum); });
   const PER = [['all', 'All time'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['year', 'This year'], ['lastyear', 'Last year'], ['custom', 'Custom dates']];
   const psel = U.ph.sel || (U.ph.kind === 'custom' ? 'custom' : 'all');
-  let h = header('History') + '<div class="wrap">';
-  h += `<div class="search"><input type="search" placeholder="Search name, note, category" value="${esc(f.q)}" data-a="hq"></div>
-  <div class="btns" style="margin:0 0 10px"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-  <select data-a="hacc"><option value="">All accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
-  <div class="btns" style="margin:0 0 10px"><select data-a="hper">${PER.map(([v, l]) => `<option value="${v}" ${psel === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+  const locked = !!f.locked, ft0 = f.type;
+  const active = !!(f.acc || f.cat || f.q || psel !== 'all' || (!locked && ft0 !== 'all'));
+  const catList = ft0 === 'expense' ? catSorted('expense') : ft0 === 'income' ? catSorted('income') : [...catSorted('expense'), ...catSorted('income')];
+  const showCat = ft0 !== 'transfer' && ft0 !== 'prepayment';
+  let h = header(({ expense: 'Expenses', income: 'Income', transfer: 'Transfers' })[locked ? ft0 : ''] || 'History') + '<div class="wrap">';
+  h += `<div class="fchips">${locked ? '' : `<label class="fchip"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
+  <label class="fchip ${f.acc ? 'on' : ''}"><select data-a="hacc"><option value="">Accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+  ${showCat ? `<label class="fchip ${f.cat ? 'on' : ''}"><select data-a="hcat"><option value="">Categories</option>${catList.map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${ft0 === 'all' && c.type === 'income' ? '↓ ' : ''}${esc(catPath(c.id))}</option>`).join('')}</select></label>` : ''}
+  <label class="fchip ${psel !== 'all' ? 'on' : ''}"><select data-a="hper">${PER.map(([v, l]) => `<option value="${v}" ${psel === v ? 'selected' : ''}>${v === 'all' ? 'Period' : l}</option>`).join('')}</select></label>
+  <button class="fchip ${f.q ? 'on' : ''}" data-a="hsearch">Search ${U.hsearch || f.q ? '▴' : '▾'}</button>
+  ${active ? '<button class="fchip rst" data-a="hreset">↺ Reset</button>' : ''}</div>
+  ${U.hsearch || f.q ? `<div class="search"><input type="search" placeholder="Search name, note, category" value="${esc(f.q)}" data-a="hq"></div>` : ''}
   ${psel === 'custom' ? `<div class="btns" style="margin:0 0 10px"><input type="date" value="${ymd(U.ph.from || Date.now())}" data-a="pfrom" data-k="ph"><input type="date" value="${ymd(U.ph.to || Date.now())}" data-a="pto" data-k="ph"></div>` : ''}
-  <div class="btns" style="margin:0 0 10px"><select data-a="hcat"><option value="">All categories</option>${[...catSorted('expense'), ...catSorted('income')].map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${c.type === 'income' ? '↓ ' : ''}${esc(catPath(c.id))}</option>`).join('')}</select></div>
 `;
   if (!list.length) return h + emptyMsg('No transactions for this period.') + '</div>';
   const groups = new Map();
   list.forEach(t => { const k = +startOfDay(t.date); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); });
   groups.forEach((arr, k) => {
     const net = new Map(); arr.forEach(t => { if (t.type === 'transfer' || t.type === 'prepayment' || (t.debtId && !t.noBal)) return; addBy(net, acc(t.accountId)?.currencyId, t.type === 'income' ? t.sum : -t.sum); });
-    h += `<div class="dayhead"><span>${dayLabel(k)}</span><span style="text-align:right">${fmtMulti(net, true)}</span></div><div class="card" style="padding:4px 14px">${collapse(arr).map(t => txRowHtml(t, { time: true })).join('')}</div>`;
+    h += `<div class="dayhead c"><span>${dayLabel(k)}</span>${f.type === 'transfer' ? '' : `<span class="dnet">${fmtMulti(net, true)}</span>`}</div><div class="card" style="padding:2px 14px">${collapse(arr).map(t => txRowHtml(t, { hist: true })).join('')}</div>`;
   });
   const ft = f.type, showI = ft === 'all' || ft === 'income', showE = ft === 'all' || ft === 'expense';
   const inl = m => { const e = [...m].filter(([, v]) => Math.abs(v) > 1e-7); return e.length ? e.map(([k, v]) => fmt(v, k)).join(' · ') : fmt(0, defCur().id); };
@@ -1113,7 +1127,7 @@ function setPin() {
 // ───────────────────────── events ─────────────────────────
 const actions = {
   tab: v => tab(v), go: (v, el) => go(v, el.dataset.arg), back: () => back(), close: () => closeSheet(),
-  addtx: () => openTx(), addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
+  addtx: () => { const top = U.stack[U.stack.length - 1]?.name; if (top === 'prepayments') return openTx({ type: 'prepayment' }); if (!U.stack.length && U.tab === 'hist' && U.hf.locked && ['income', 'expense', 'transfer'].includes(U.hf.type)) return openTx({ type: U.hf.type }); openTx(); }, addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
   edittx: v => { const t = S.tx.find(x => x.id === v); if (!t) return; if (t.debtId && t.debtId !== 'legacy' && t.debtId !== 'adjust') { const d = S.debts.find(x => x.id === t.debtId); if (d) { go('debt', d.id); } return; } if (t.groupId) { const rows = S.tx.filter(x => x.groupId === t.groupId).sort((a, b) => (a.gi || 0) - (b.gi || 0)); openTx({ ...rows[0], repeat: 'none', split: true, parts: rows.map(r => ({ accountId: r.prepayId ? 'pp:' + r.prepayId : r.accountId, sum: r.sum })) }); return; } openTx({ ...t, repeat: 'none' }); },
   editplanned: v => { const p = S.planned.find(x => x.id === v); openTx({ ...p }, 'planned'); },
   planok: v => { const p = S.planned.find(x => x.id === v); if (!p) return; S.tx.push({ id: uid(), type: p.type, accountId: p.accountId, categoryId: p.categoryId, sum: p.sum, name: p.name, desc: p.desc, toAccountId: p.toAccountId, toSum: p.toSum, prepayId: p.prepayId, date: Math.min(p.date, Date.now()) }); advancePlanned(p); save(); render(); toast('Added'); },
@@ -1124,7 +1138,7 @@ const actions = {
   editacc: v => editAccount(v), editcat: (v, el) => editCategory(v, el.dataset.t), cattype: v => { U.catType = v; render(); },
   editcur: v => editCurrency(v), editbudget: v => editBudget(v), editdebt: v => editDebt(v),
   remgo: v => { closeSheet(); go('debt', v); }, debtcal: v => debtIcs(v), debtnotif: () => askNotif(), writeoff: v => editWriteoff(v), debtexp: v => editDebtExpense(v), addrepay: v => editRepay(v), incdebt: v => editRepay(v, null, true), editrepay: (v, el) => { const dd = S.debts.find(x => x.id === v); const rr = dd && dd.repayments.find(x => x.id === el.dataset.arg); if (rr && rr.writeoff) editWriteoff(v, rr.id); else if (rr && rr.direct) editDebtExpense(v, rr.id); else editRepay(v, el.dataset.arg); },
-  menu: v => { if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
+  menu: v => { U.hsearch = false; if (['income', 'expense', 'transfer'].includes(v)) { U.hf = { type: v, acc: '', cat: '', q: '', locked: true }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); } else if (v === 'hist') { U.hf = { type: 'all', acc: '', cat: '', q: '' }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; tab('hist'); } else if (v === 'rep') tab('rep'); else go(v); },
   eye: () => { U.hide = !U.hide; render(); },
   sortacc: () => { U.sortAcc = !U.sortAcc; render(); },
   accmove: (v, el) => { const A = S.accounts, i = A.findIndex(x => x.id === v); if (i < 0) return; const d = +el.dataset.arg; let j = i + d; while (j >= 0 && j < A.length && ((A[j].groupId || '') !== (A[i].groupId || '') || accType(A[j]) !== accType(A[i]))) j += d; if (j < 0 || j >= A.length) return; [A[i], A[j]] = [A[j], A[i]]; save(); render(); },
@@ -1136,8 +1150,8 @@ const actions = {
   ghsetup: () => ghForm(), ghnow: () => ghBackup(true),
   sortcat: () => { U.sortCat = !U.sortCat; render(); },
   catmove: (v, el) => { const c = cat(v); if (!c) return; const sb = S.categories.filter(x => x.type === c.type && (x.parentId || null) === (c.parentId || null)).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)); const i = sb.indexOf(c), j = i + +el.dataset.arg; if (j < 0 || j >= sb.length) return; [sb[i], sb[j]] = [sb[j], sb[i]]; sb.forEach((x, k) => x.order = k * 10); save(); render(); },
-  accfilter: v => { U.hf.acc = v; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); },
-  repdrill: v => { U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; { const [ra, rb] = rangeOf(U.pr); U.ph = U.pr.kind === 'all' ? { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' } : { kind: 'custom', ref: Date.now(), from: ra, to: rb - 1, sel: 'custom' }; } U.tab = 'hist'; U.stack = []; render(); },
+  accfilter: v => { U.hf.locked = false; U.hf.acc = v; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.tab = 'hist'; U.stack = []; render(); },
+  repdrill: v => { U.hsearch = false; U.hf = { type: U.rep.type === 'pie-inc' ? 'income' : 'expense', acc: U.rep.acc, cat: v, q: '' }; { const [ra, rb] = rangeOf(U.pr); U.ph = U.pr.kind === 'all' ? { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' } : { kind: 'custom', ref: Date.now(), from: ra, to: rb - 1, sel: 'custom' }; } U.tab = 'hist'; U.stack = []; render(); },
   pshift: (v, el) => { shiftPeriod(U[el.dataset.k], +v); render(); },
   pyear: v => { const d = new Date(U.pr.ref); d.setFullYear(d.getFullYear() + +v); U.pr.ref = +d; render(); },
   hidezero: (v, el) => { U.hideZero = el.checked; render(); },
@@ -1161,7 +1175,7 @@ const changes = {
   },
   pkind: (el) => { const p = U[el.dataset.k]; p.kind = el.value; if (p.kind === 'custom') { p.from = p.from || Date.now() - 30 * DAY; p.to = p.to || Date.now(); } render(); },
   pfrom: el => { U[el.dataset.k].from = +new Date(el.value + 'T00:00'); render(); }, pto: el => { U[el.dataset.k].to = +new Date(el.value + 'T00:00'); render(); },
-  htype: el => { U.hf.type = el.value; render(); }, hacc: el => { U.hf.acc = el.value; render(); }, hcat: el => { U.hf.cat = el.value; render(); },
+  hsearch: () => { U.hsearch = !U.hsearch; render(); if (U.hsearch) setTimeout(() => $('[data-a=hq]')?.focus(), 50); }, hreset: () => { const lk = U.hf.locked; U.hf = { type: lk ? U.hf.type : 'all', acc: '', cat: '', q: '', locked: lk }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.hsearch = false; render(); }, htype: el => { U.hf.type = el.value; U.hf.cat = ''; render(); }, hacc: el => { U.hf.acc = el.value; render(); }, hcat: el => { U.hf.cat = el.value; render(); },
   rtype: el => { U.rep.type = el.value; render(); }, racc: el => { U.rep.acc = el.value; render(); }, rcur: el => { U.rep.cur = el.value; render(); },
   set: el => { S.settings[el.dataset.k] = el.dataset.num ? +el.value : el.value; save(); render(); },
 };
