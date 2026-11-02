@@ -253,3 +253,6 @@ button.fchip{padding:9px 16px}
 
 .ttsel .ttlab small{font-size:.8em;color:var(--brand);margin-left:2px}
 .ttsel .ttlab{display:inline-flex;align-items:center;gap:4px;padding:4px 10px 4px 0}
+
+.ttsel .ttlab{gap:8px;padding:4px 0}
+.ttsel .ttchev{color:var(--brand);flex:none}
