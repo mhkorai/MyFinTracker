@@ -412,7 +412,7 @@ function viewHistory() {
   const active = !!(f.acc || f.cat || f.q || psel !== 'all');
   const catList = ft0 === 'expense' ? catSorted('expense') : ft0 === 'income' ? catSorted('income') : [...catSorted('expense'), ...catSorted('income')];
   const showCat = ft0 !== 'transfer' && ft0 !== 'prepayment';
-  const TT = [['all', 'History'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']];
+  const TT = [['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']];
   let h = header('', { titleHtml: `<label class="ttsel"><span class="ttlab">${esc((TT.find(x => x[0] === ft0) || TT[0])[1])} <small>▾</small></span><select data-a="htype" aria-label="Type">${TT.map(([v, l]) => `<option value="${v}" ${ft0 === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` }) + '<div class="wrap">';
   h += `<div class="fchips">
   <label class="fchip ${f.acc ? 'on' : ''}"><select data-a="hacc"><option value="">Accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
