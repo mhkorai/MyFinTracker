@@ -1126,6 +1126,7 @@ function setPin() {
 
 // ───────────────────────── events ─────────────────────────
 const actions = {
+  hsearch: () => { U.hsearch = !U.hsearch; render(); if (U.hsearch) setTimeout(() => $('[data-a=hq]')?.focus(), 50); }, hreset: () => { const lk = U.hf.locked; U.hf = { type: lk ? U.hf.type : 'all', acc: '', cat: '', q: '', locked: lk }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.hsearch = false; render(); },
   tab: v => tab(v), go: (v, el) => go(v, el.dataset.arg), back: () => back(), close: () => closeSheet(),
   addtx: () => { const top = U.stack[U.stack.length - 1]?.name; if (top === 'prepayments') return openTx({ type: 'prepayment' }); if (!U.stack.length && U.tab === 'hist' && U.hf.locked && ['income', 'expense', 'transfer'].includes(U.hf.type)) return openTx({ type: U.hf.type }); openTx(); }, addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
   edittx: v => { const t = S.tx.find(x => x.id === v); if (!t) return; if (t.debtId && t.debtId !== 'legacy' && t.debtId !== 'adjust') { const d = S.debts.find(x => x.id === t.debtId); if (d) { go('debt', d.id); } return; } if (t.groupId) { const rows = S.tx.filter(x => x.groupId === t.groupId).sort((a, b) => (a.gi || 0) - (b.gi || 0)); openTx({ ...rows[0], repeat: 'none', split: true, parts: rows.map(r => ({ accountId: r.prepayId ? 'pp:' + r.prepayId : r.accountId, sum: r.sum })) }); return; } openTx({ ...t, repeat: 'none' }); },
@@ -1175,7 +1176,7 @@ const changes = {
   },
   pkind: (el) => { const p = U[el.dataset.k]; p.kind = el.value; if (p.kind === 'custom') { p.from = p.from || Date.now() - 30 * DAY; p.to = p.to || Date.now(); } render(); },
   pfrom: el => { U[el.dataset.k].from = +new Date(el.value + 'T00:00'); render(); }, pto: el => { U[el.dataset.k].to = +new Date(el.value + 'T00:00'); render(); },
-  hsearch: () => { U.hsearch = !U.hsearch; render(); if (U.hsearch) setTimeout(() => $('[data-a=hq]')?.focus(), 50); }, hreset: () => { const lk = U.hf.locked; U.hf = { type: lk ? U.hf.type : 'all', acc: '', cat: '', q: '', locked: lk }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.hsearch = false; render(); }, htype: el => { U.hf.type = el.value; U.hf.cat = ''; render(); }, hacc: el => { U.hf.acc = el.value; render(); }, hcat: el => { U.hf.cat = el.value; render(); },
+  htype: el => { U.hf.type = el.value; U.hf.cat = ''; render(); }, hacc: el => { U.hf.acc = el.value; render(); }, hcat: el => { U.hf.cat = el.value; render(); },
   rtype: el => { U.rep.type = el.value; render(); }, racc: el => { U.rep.acc = el.value; render(); }, rcur: el => { U.rep.cur = el.value; render(); },
   set: el => { S.settings[el.dataset.k] = el.dataset.num ? +el.value : el.value; save(); render(); },
 };
