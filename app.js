@@ -281,7 +281,7 @@ function render() {
   bindRender();
 }
 function header(title, opts = {}) {
-  return `<div class="top">${opts.back ? `<button class="back" data-a="back">‹ Back</button>` : ''}<h1>${esc(title)}</h1><button class="icon-btn" data-a="eye" aria-label="${U.hide ? 'Show amounts' : 'Hide amounts'}" title="${U.hide ? 'Show amounts' : 'Hide amounts'}">${U.hide ? EYE_OFF : EYE}</button>${opts.right || ''}</div>`;
+  return `<div class="top">${opts.back ? `<button class="back" data-a="back">‹ Back</button>` : ''}<h1>${opts.titleHtml || esc(title)}</h1><button class="icon-btn" data-a="eye" aria-label="${U.hide ? 'Show amounts' : 'Hide amounts'}" title="${U.hide ? 'Show amounts' : 'Hide amounts'}">${U.hide ? EYE_OFF : EYE}</button>${opts.right || ''}</div>`;
 }
 function emptyMsg(t) { return `<div class="empty">${t}</div>`; }
 
@@ -409,11 +409,12 @@ function viewHistory() {
   const PER = [['all', 'All time'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['year', 'This year'], ['lastyear', 'Last year'], ['custom', 'Custom dates']];
   const psel = U.ph.sel || (U.ph.kind === 'custom' ? 'custom' : 'all');
   const locked = !!f.locked, ft0 = f.type;
-  const active = !!(f.acc || f.cat || f.q || psel !== 'all' || (!locked && ft0 !== 'all'));
+  const active = !!(f.acc || f.cat || f.q || psel !== 'all');
   const catList = ft0 === 'expense' ? catSorted('expense') : ft0 === 'income' ? catSorted('income') : [...catSorted('expense'), ...catSorted('income')];
   const showCat = ft0 !== 'transfer' && ft0 !== 'prepayment';
-  let h = header(({ expense: 'Expenses', income: 'Income', transfer: 'Transfers' })[locked ? ft0 : ''] || 'History') + '<div class="wrap">';
-  h += `<div class="fchips">${locked ? '' : `<label class="fchip"><select data-a="htype">${[['all', 'All types'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']].map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`}
+  const TT = [['all', 'History'], ['expense', 'Expenses'], ['income', 'Income'], ['transfer', 'Transfers'], ['prepayment', 'Prepayments']];
+  let h = header('', { titleHtml: `<label class="ttsel"><span class="ttlab">${esc((TT.find(x => x[0] === ft0) || TT[0])[1])} <small>▾</small></span><select data-a="htype" aria-label="Type">${TT.map(([v, l]) => `<option value="${v}" ${ft0 === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` }) + '<div class="wrap">';
+  h += `<div class="fchips">
   <label class="fchip ${f.acc ? 'on' : ''}"><select data-a="hacc"><option value="">Accounts</option>${S.accounts.map(a => `<option value="${a.id}" ${f.acc === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
   ${showCat ? `<label class="fchip ${f.cat ? 'on' : ''}"><select data-a="hcat"><option value="">Categories</option>${catList.map(c => `<option value="${c.id}" ${f.cat === c.id ? 'selected' : ''}>${ft0 === 'all' && c.type === 'income' ? '↓ ' : ''}${esc(catPath(c.id))}</option>`).join('')}</select></label>` : ''}
   <label class="fchip ${psel !== 'all' ? 'on' : ''}"><select data-a="hper">${PER.map(([v, l]) => `<option value="${v}" ${psel === v ? 'selected' : ''}>${v === 'all' ? 'Period' : l}</option>`).join('')}</select></label>
@@ -1126,9 +1127,9 @@ function setPin() {
 
 // ───────────────────────── events ─────────────────────────
 const actions = {
-  hsearch: () => { U.hsearch = !U.hsearch; render(); if (U.hsearch) setTimeout(() => $('[data-a=hq]')?.focus(), 50); }, hreset: () => { const lk = U.hf.locked; U.hf = { type: lk ? U.hf.type : 'all', acc: '', cat: '', q: '', locked: lk }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.hsearch = false; render(); },
+  hsearch: () => { U.hsearch = !U.hsearch; render(); if (U.hsearch) setTimeout(() => $('[data-a=hq]')?.focus(), 50); }, hreset: () => { const lk = U.hf.locked; U.hf = { type: U.hf.type, acc: '', cat: '', q: '', locked: lk }; U.ph = { kind: 'all', ref: Date.now(), from: null, to: null, sel: 'all' }; U.hsearch = false; render(); },
   tab: v => tab(v), go: (v, el) => go(v, el.dataset.arg), back: () => back(), close: () => closeSheet(),
-  addtx: () => { const top = U.stack[U.stack.length - 1]?.name; if (top === 'prepayments') return openTx({ type: 'prepayment' }); if (top === 'debts') return editDebt(); if (!U.stack.length && U.tab === 'hist' && U.hf.locked && ['income', 'expense', 'transfer'].includes(U.hf.type)) return openTx({ type: U.hf.type }); openTx(); }, addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
+  addtx: () => { const top = U.stack[U.stack.length - 1]?.name; if (top === 'prepayments') return openTx({ type: 'prepayment' }); if (top === 'debts') return editDebt(); if (!U.stack.length && U.tab === 'hist' && ['income', 'expense', 'transfer'].includes(U.hf.type)) return openTx({ type: U.hf.type }); openTx(); }, addprepay: () => openTx({ type: 'prepayment' }), addplanned: () => openTx({}, 'planned'),
   edittx: v => { const t = S.tx.find(x => x.id === v); if (!t) return; if (t.debtId && t.debtId !== 'legacy' && t.debtId !== 'adjust') { const d = S.debts.find(x => x.id === t.debtId); if (d) { go('debt', d.id); } return; } if (t.groupId) { const rows = S.tx.filter(x => x.groupId === t.groupId).sort((a, b) => (a.gi || 0) - (b.gi || 0)); openTx({ ...rows[0], repeat: 'none', split: true, parts: rows.map(r => ({ accountId: r.prepayId ? 'pp:' + r.prepayId : r.accountId, sum: r.sum })) }); return; } openTx({ ...t, repeat: 'none' }); },
   editplanned: v => { const p = S.planned.find(x => x.id === v); openTx({ ...p }, 'planned'); },
   planok: v => { const p = S.planned.find(x => x.id === v); if (!p) return; S.tx.push({ id: uid(), type: p.type, accountId: p.accountId, categoryId: p.categoryId, sum: p.sum, name: p.name, desc: p.desc, toAccountId: p.toAccountId, toSum: p.toSum, prepayId: p.prepayId, date: Math.min(p.date, Date.now()) }); advancePlanned(p); save(); render(); toast('Added'); },
